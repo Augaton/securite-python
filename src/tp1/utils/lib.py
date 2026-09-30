@@ -1,10 +1,9 @@
-from scapy.all import Packet, conf, get_if_list
+from scapy.all import Packet, Padding, Raw, conf, get_if_list
 
 from src.tp1.utils.config import logger
 
-# Protocoles qu'on reconnait. L'ordre compte : DNS doit être avant UDP sinon tous les paquets DNS
-# seraient comptés comme UDP
-KNOWN_PROTOCOLS = ["DNS", "TCP", "UDP", "ICMP", "ARP"]
+# Couches qui transportent des données sans identifier de protocole
+PAYLOAD_LAYERS = (Raw, Padding)
 
 
 def hello_world() -> str:
@@ -37,12 +36,13 @@ def choose_interface() -> str:
 
 def get_protocol(packet: Packet) -> str:
     """
-    Retourne le protocole d'un paquet (le premier de KNOWN_PROTOCOLS qui est dans le paquet)
+    Retourne le protocole le plus précis d'un paquet, c'est-à-dire sa dernière couche sans compter
+    les données brutes. Ex : Ether / IP / UDP / DNS -> "DNS", Ether / IP / TCP / Raw -> "TCP"
 
     :param packet: paquet capturé avec scapy
-    :return: nom du protocole, "Autre" si on le connait pas
+    :return: nom du protocole, "Autre" si le paquet ne contient que des données brutes
     """
-    for protocol in KNOWN_PROTOCOLS:
-        if packet.haslayer(protocol):
-            return protocol
-    return "Autre"
+    protocol_layers = [layer for layer in packet.layers() if layer not in PAYLOAD_LAYERS]
+    if not protocol_layers:
+        return "Autre"
+    return protocol_layers[-1].__name__

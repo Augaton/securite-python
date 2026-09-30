@@ -1,6 +1,6 @@
 from unittest.mock import MagicMock, patch
 
-from scapy.all import DNS, IP, TCP, UDP, Ether, IPv6, Raw
+from scapy.all import ARP, DNS, IP, TCP, UDP, Ether, ICMPv6ND_NS, IPv6, Padding, Raw
 
 from src.tp1.utils.lib import choose_interface, get_protocol, hello_world
 
@@ -65,9 +65,31 @@ def test_given_tcp_packet_with_data_when_get_protocol_then_return_tcp():
     assert result == "TCP"
 
 
-def test_given_unknown_protocol_when_get_protocol_then_return_autre():
+def test_given_ipv6_packet_when_get_protocol_then_return_its_last_layer():
     # Given
-    packet = Ether() / IPv6()
+    packet = Ether() / IPv6() / ICMPv6ND_NS()
+
+    # When
+    result = get_protocol(packet)
+
+    # Then
+    assert result == "ICMPv6ND_NS"
+
+
+def test_given_arp_packet_with_padding_when_get_protocol_then_return_arp():
+    # Given
+    packet = Ether() / ARP() / Padding(b"\x00" * 18)
+
+    # When
+    result = get_protocol(packet)
+
+    # Then
+    assert result == "ARP"
+
+
+def test_given_raw_data_only_when_get_protocol_then_return_autre():
+    # Given
+    packet = Raw(b"donnees")
 
     # When
     result = get_protocol(packet)

@@ -47,9 +47,9 @@ Les logs sont aussi écrits dans `app.log`.
 
 ### Comment ça marche
 
-Pour trouver le protocole d'un paquet on regarde s'il contient une de ces couches, dans cet ordre :
-DNS, TCP, UDP, ICMP, ARP. Si aucune n'est trouvée le paquet est compté dans "Autre".
-DNS est en premier car un paquet DNS contient aussi une couche UDP.
+Pour trouver le protocole d'un paquet on prend sa couche la plus "haute" en ignorant les données brutes
+(Raw) et le padding : `Ether / IP / UDP / DNS` ça donne DNS, `Ether / IP / TCP / Raw` ça donne TCP.
+Comme ça on voit tous les types de paquets (IPv6, NBNS, LLMNR...) et pas juste une liste fixe.
 
 Le code est dans `src/tp1/` :
 
