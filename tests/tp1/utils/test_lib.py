@@ -2,7 +2,7 @@ import logging
 from unittest.mock import MagicMock, call, patch
 
 import pytest
-from scapy.all import ARP, DNS, IP, TCP, UDP, Ether, ICMPv6ND_NS, IPv6, Padding, Raw
+from scapy.all import ARP, DNS, ICMP, IP, TCP, UDP, Ether, ICMPv6ND_NS, IPerror, IPv6, Padding, Raw, UDPerror
 
 from src.tp1.utils.lib import (
     choose_interface,
@@ -116,6 +116,17 @@ def test_given_arp_packet_with_padding_when_get_protocol_then_return_arp():
 
     # Then
     assert result == "ARP"
+
+
+def test_given_icmp_port_unreachable_when_get_protocol_then_return_icmp():
+    # Given
+    packet = Ether() / IP() / ICMP(type=3, code=3) / IPerror() / UDPerror()
+
+    # When
+    result = get_protocol(packet)
+
+    # Then
+    assert result == "ICMP"
 
 
 def test_given_raw_data_only_when_get_protocol_then_return_autre():

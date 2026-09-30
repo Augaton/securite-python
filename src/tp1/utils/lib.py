@@ -2,12 +2,24 @@ import logging
 import os
 import pwd
 
-from scapy.all import Packet, Padding, Raw, conf, get_if_list
+from scapy.all import (
+    ICMPerror,
+    IPerror,
+    IPerror6,
+    Packet,
+    Padding,
+    Raw,
+    TCPerror,
+    UDPerror,
+    conf,
+    get_if_list,
+)
 
 from src.tp1.utils.config import logger
 
-# Couches qui transportent des données sans identifier de protocole
-PAYLOAD_LAYERS = (Raw, Padding)
+# Couches qui ne donnent pas le protocole du paquet : les données brutes, et l'en-tête du paquet
+# d'origine recopié dans une erreur ICMP ("port injoignable" est un paquet ICMP, pas un paquet UDP)
+PAYLOAD_LAYERS = (Raw, Padding, IPerror, IPerror6, TCPerror, UDPerror, ICMPerror)
 
 
 def hello_world() -> str:
