@@ -49,3 +49,15 @@ def test_get_flag():
 
     # Then
     assert result == "FLAG123"
+
+
+def test_prepare_request():
+    # Given
+    session = Session("http://example.com/captcha")
+
+    # When
+    session.prepare_request()
+
+    # Then
+    assert session.captcha_value == "FIXME"
+    assert session.flag_value == "FIXME"

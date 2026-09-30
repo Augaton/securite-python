@@ -1,4 +1,5 @@
 import logging
+import os
 from unittest.mock import MagicMock, call, patch
 
 import pytest
@@ -21,6 +22,7 @@ from scapy.all import (
 from src.tp1.utils.lib import (
     choose_interface,
     drop_privileges,
+    get_sudo_user,
     format_share,
     get_protocol,
     give_log_files_to,
@@ -280,3 +282,25 @@ def test_given_end_of_input_when_choose_interface_then_default_interface(_mock_g
 
     # Then
     assert result == "wlan0"
+
+
+def test_given_program_launched_with_sudo_when_get_sudo_user_then_return_its_account(monkeypatch):
+    # Given
+    monkeypatch.setenv("SUDO_UID", str(os.getuid()))
+
+    # When
+    result = get_sudo_user()
+
+    # Then
+    assert result.pw_uid == os.getuid()
+
+
+def test_given_no_sudo_when_get_sudo_user_then_return_none(monkeypatch):
+    # Given
+    monkeypatch.delenv("SUDO_UID", raising=False)
+
+    # When
+    result = get_sudo_user()
+
+    # Then
+    assert result is None
