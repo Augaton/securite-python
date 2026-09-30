@@ -202,7 +202,6 @@ def test_given_root_launched_with_sudo_when_drop_privileges_then_become_the_sudo
         drop_privileges()
 
     # Then
-    # les groupes et le gid doivent changer avant l'uid : après, root n'est plus là pour le faire
     identity_calls = [method_call for method_call in mock_os.method_calls if method_call[0] in IDENTITY_CALLS]
     assert identity_calls == [call.initgroups("etudiant", 1001), call.setgid(1001), call.setuid(1000)]
     mock_give_log_files_to.assert_called_once_with(SUDO_USER)

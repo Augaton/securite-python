@@ -14,19 +14,17 @@ FONT = "Helvetica"
 MARGIN_MM = 20
 GREY_TEXT = (82, 81, 78)
 HEADINGS_STYLE = FontFace(emphasis="BOLD", fill_color=(240, 239, 236))
-# Histogramme du PDF : une ligne par protocole (nom, barre, nombre de paquets)
-BAR_COLOR = (42, 120, 214)  # le même bleu que le graphique pygal
+BAR_COLOR = (42, 120, 214)
 LABEL_WIDTH_MM = 45
 VALUE_WIDTH_MM = 22
 BAR_HEIGHT_MM = 5
 BAR_GAP_MM = 1.5
-MAX_BARS = 25  # au-delà le graphique ne tient plus sur une page (le tableau garde tout)
+MAX_BARS = 25  # au-delà le graphique ne tient plus sur une page (le tableau, lui, garde tout)
 
 
 def to_pdf_text(text: str) -> str:
     """
-    Les polices de base de fpdf ne gèrent que le latin-1 : les autres caractères (par exemple ceux
-    envoyés par l'attaquant dans une requête) sont remplacés par "?" au lieu de faire planter le PDF
+    Remplace par "?" les caractères que les polices de base de fpdf (latin-1) ne savent pas écrire
     """
     return str(text).encode("latin-1", "replace").decode("latin-1")
 
@@ -37,8 +35,8 @@ class Report:
         self.filename = filename
         self.title = "Rapport de capture réseau"
         self.summary = summary
-        self.array = []  # lignes du tableau : (protocole, nombre de paquets)
-        self.graph = ""  # chemin de l'image du graphique
+        self.array = []
+        self.graph = ""
 
     def concat_report(self) -> FPDF:
         """
@@ -67,7 +65,7 @@ class Report:
 
     def add_title(self, pdf: FPDF) -> None:
         """
-        Ajoute le titre du rapport avec la date et l'interface écoutée
+        Ajoute le titre du rapport, avec la date et la source des paquets
         """
         pdf.set_font(FONT, "B", 18)
         pdf.cell(0, 10, self.title, new_x="LMARGIN", new_y="NEXT")
@@ -82,7 +80,7 @@ class Report:
     @staticmethod
     def add_section(pdf: FPDF, title: str) -> None:
         """
-        Ajoute le titre d'une partie du rapport puis repasse en police normale
+        Ajoute le titre d'une partie du rapport
         """
         pdf.set_font(FONT, "B", 13)
         pdf.cell(0, 8, title, new_x="LMARGIN", new_y="NEXT")
@@ -90,7 +88,7 @@ class Report:
 
     def add_array(self, pdf: FPDF) -> None:
         """
-        Ajoute le tableau protocole / nombre de paquets / part du trafic / légitimité, avec le total
+        Ajoute le tableau des paquets par protocole, avec leur part, leur légitimité et le total
         """
         total = sum(count for _, count in self.array)
         with pdf.table(
@@ -117,7 +115,7 @@ class Report:
     @staticmethod
     def add_attacks_table(pdf: FPDF, attacks: list) -> None:
         """
-        Ajoute le tableau des attaques : une ligne par attaque avec l'IP et la MAC de l'attaquant
+        Ajoute le tableau des attaques, avec l'IP et la MAC de l'attaquant
         """
         with pdf.table(
             col_widths=(2.2, 1.8, 2.4, 3, 4.6),
@@ -139,8 +137,7 @@ class Report:
 
     def add_attacks(self, pdf: FPDF) -> None:
         """
-        Ajoute chaque tentative d'attaque avec le protocole et les adresses réseau/physique de
-        l'attaquant, ou indique que tout va bien, puis le marqueur trouvé dans le trafic
+        Ajoute les tentatives d'attaque (ou indique que tout va bien) et le marqueur trouvé
         """
         attacks = list(self.capture.attacks)
         if not attacks:
@@ -155,10 +152,7 @@ class Report:
 
     def add_graph(self, pdf: FPDF) -> None:
         """
-        Ajoute l'histogramme du nombre de paquets par protocole, dessiné directement avec fpdf : passer
-        le SVG de pygal en image demandait la bibliothèque système cairo, absente du bac à sable de
-        correction (le programme plantait dès le démarrage). Il passe à la page suivante avec son
-        titre s'il ne tient pas en bas de page
+        Ajoute l'histogramme des paquets par protocole, sur la page suivante s'il ne tient pas
         """
         protocols = list(self.capture.protocols.items())[:MAX_BARS]
         if self.graph == "" or not protocols:
@@ -170,8 +164,7 @@ class Report:
     @staticmethod
     def draw_bars(pdf: FPDF, protocols: list[tuple[str, int]]) -> None:
         """
-        Une barre horizontale par protocole, proportionnelle à son nombre de paquets. Les barres sont
-        des cellules remplies de couleur : elles se placent et suivent les sauts de page comme du texte
+        Dessine une barre par protocole, proportionnelle à son nombre de paquets
         """
         max_count = max(count for _, count in protocols)
         bars_width = pdf.epw - LABEL_WIDTH_MM - VALUE_WIDTH_MM
@@ -179,6 +172,7 @@ class Report:
         pdf.set_fill_color(*BAR_COLOR)
         for protocol, count in protocols:
             pdf.cell(LABEL_WIDTH_MM, BAR_HEIGHT_MM, f"{to_pdf_text(protocol)}  ", align="R")
+            # la barre est une cellule remplie : elle suit les sauts de page comme du texte
             pdf.cell(max(bars_width * count / max_count, 0.5), BAR_HEIGHT_MM, "", fill=True)
             pdf.cell(VALUE_WIDTH_MM, BAR_HEIGHT_MM, f"  {count}", new_x="LMARGIN", new_y="NEXT")
             pdf.ln(BAR_GAP_MM)
@@ -195,9 +189,7 @@ class Report:
 
     def save_json(self, filename: str) -> None:
         """
-        Enregistre le résultat au format attendu par le correcteur (le PDF reste le livrable "humain") :
-        {"protocols": {"TCP": 128}, "attacks": [{"type": "arp_spoofing", "attacker": "aa:bb:..."}],
-         "flag": "ESGI{...}"}
+        Enregistre le report.json lu par le correcteur : protocoles, attaques et marqueur
 
         :param filename: nom du fichier JSON
         """

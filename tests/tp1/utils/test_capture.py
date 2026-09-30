@@ -14,7 +14,6 @@ def feed(capture: Capture, packets: list) -> None:
         capture.add_packet(packet)
 
 
-# Capture() demande l'interface avec input(), on la remplace pour les tests
 @pytest.fixture(autouse=True)
 def mock_choose_interface():
     with patch("src.tp1.utils.capture.choose_interface", return_value="eth0"):

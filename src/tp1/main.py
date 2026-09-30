@@ -7,14 +7,12 @@ from src.tp1.utils.config import logger
 from src.tp1.utils.lib import drop_privileges
 from src.tp1.utils.report import Report
 
-# Extensions des fichiers de capture, pour reconnaître le fichier à analyser parmi les arguments
 PCAP_EXTENSIONS = (".pcap", ".pcapng", ".cap")
 
 
 def find_pcap_file(candidates: list[str]) -> str | None:
     """
-    Retrouve le fichier de capture parmi les arguments : de préférence un fichier .pcap existant,
-    sinon le premier fichier existant
+    Retrouve le fichier de capture parmi les arguments (un .pcap de préférence)
 
     :param candidates: arguments qui peuvent désigner le fichier
     :return: chemin du fichier, None si aucun argument n'est un fichier
@@ -26,7 +24,7 @@ def find_pcap_file(candidates: list[str]) -> str | None:
 
 def build_parser() -> argparse.ArgumentParser:
     """
-    Décrit les options de la ligne de commande (affichées par --help)
+    Décrit les options de la ligne de commande
     """
     parser = argparse.ArgumentParser(description="TP1 : capture réseau, détection d'attaques et rapport")
     parser.add_argument("pcap_file", nargs="?", help="fichier pcap à analyser (comme --pcap)")
@@ -41,9 +39,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 def parse_arguments(arguments: list[str] | None = None) -> argparse.Namespace:
     """
-    Lit les options de la ligne de commande. Le fichier pcap se donne directement
-    (python src/tp1/main.py capture.pcap), avec --pcap ou avec -r. Une option inconnue est ignorée avec
-    un avertissement au lieu d'arrêter le programme (lancement par un script de correction par exemple)
+    Lit les options de la ligne de commande, en ignorant celles qu'on ne connait pas
 
     :param arguments: options à lire, None pour celles passées au programme
     :return: options (timeout et pcap)
@@ -74,8 +70,7 @@ def main(arguments: list[str] | None = None):
     try:
         capture.open_socket()
     except PermissionError:
-        # scapy a besoin d'être root pour écouter une interface, et root ne connait pas poetry :
-        # on donne le chemin complet du script à relancer avec sudo
+        # root ne connait pas poetry : on donne le chemin complet du script
         tp1_script = Path(sys.executable).parent / "tp1"
         logger.error(f"Pas les droits pour capturer les paquets, relancer avec : sudo {tp1_script}")
         return

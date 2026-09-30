@@ -5,7 +5,7 @@ from src.tp1.utils.config import logger
 
 GRAPH_SVG = "graph.svg"
 
-# Une seule couleur pour toutes les barres, grille discrète en trait plein (pointillés par défaut)
+# grille en trait plein : pygal la dessine en pointillés par défaut
 GRAPH_STYLE = Style(
     background="#ffffff",
     plot_background="#ffffff",
@@ -25,15 +25,13 @@ GRAPH_STYLE = Style(
     title_font_size=18,
     no_data_font_size=24,
 )
-# La hauteur dépend du nombre de protocoles pour garder des barres fines
 BASE_HEIGHT_PX = 140
 BAR_HEIGHT_PX = 34
 
 
 def create_graph(protocols: dict) -> pygal.HorizontalBar:
     """
-    Crée un histogramme horizontal du nombre de paquets de chaque protocole,
-    le protocole le plus utilisé en haut
+    Crée un histogramme horizontal du nombre de paquets par protocole
 
     :param protocols: {protocole: nombre de paquets}
     :return: graphique pygal
@@ -45,9 +43,9 @@ def create_graph(protocols: dict) -> pygal.HorizontalBar:
         height=BASE_HEIGHT_PX + BAR_HEIGHT_PX * max(len(protocols), 1),
         no_data_text="Aucun paquet capturé",
         order_min=0,  # graduations entières : on compte des paquets
-        js=[],  # pas de script chargé depuis internet (infobulles de pygal)
+        js=[],  # pas de script chargé depuis internet
     )
-    # pygal dessine la première barre en bas : on trie par ordre croissant pour avoir la plus grande en haut
+    # pygal dessine la première barre en bas : ordre croissant pour avoir la plus grande en haut
     ordered_protocols = sorted(protocols.items(), key=lambda item: item[1])
     graph.x_labels = [protocol for protocol, _ in ordered_protocols]
     graph.add("Paquets", [count for _, count in ordered_protocols])

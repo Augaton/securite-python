@@ -18,8 +18,7 @@ from scapy.all import (
 
 from src.tp1.utils.config import logger
 
-# Couches qui ne donnent pas le protocole du paquet : les données brutes, et l'en-tête du paquet
-# d'origine recopié dans une erreur ICMP ("port injoignable" est un paquet ICMP, pas un paquet UDP)
+# données brutes, et en-têtes du paquet d'origine recopiés dans une erreur ICMP (qui reste un paquet ICMP)
 PAYLOAD_LAYERS = (Raw, Padding, IPerror, IPerror6, TCPerror, UDPerror, ICMPerror)
 
 
@@ -36,7 +35,7 @@ def parse_interface_choice(choice: str, interfaces: list[str]) -> str | None:
     """
     Convertit la saisie de l'utilisateur en nom d'interface
 
-    :param choice: numéro ou nom de l'interface, vide pour garder l'interface par défaut de scapy
+    :param choice: numéro ou nom de l'interface, vide pour l'interface par défaut
     :param interfaces: interfaces disponibles
     :return: nom de l'interface, None si la saisie ne correspond à aucune interface
     """
@@ -52,7 +51,7 @@ def parse_interface_choice(choice: str, interfaces: list[str]) -> str | None:
 
 def use_default_interface() -> str:
     """
-    Retourne l'interface par défaut de scapy, quand personne ne peut en choisir une au clavier
+    Retourne l'interface par défaut de scapy
     """
     logger.info(f"Pas de saisie possible, interface par défaut : {conf.iface}")
     return str(conf.iface)
@@ -60,9 +59,7 @@ def use_default_interface() -> str:
 
 def choose_interface() -> str:
     """
-    Affiche les interfaces réseau et demande à l'utilisateur d'en choisir une,
-    jusqu'à ce que le choix soit valide (une faute de frappe ne lance pas la capture ailleurs).
-    Sans clavier (script, correction automatique), pas de question : l'interface par défaut est prise
+    Affiche les interfaces réseau et demande laquelle écouter, jusqu'à avoir un choix valide
 
     :return: network interface
     """
@@ -85,8 +82,7 @@ def choose_interface() -> str:
 
 def get_protocol(packet: Packet) -> str:
     """
-    Retourne le protocole le plus précis d'un paquet, c'est-à-dire sa dernière couche sans compter
-    les données brutes. Ex : Ether / IP / UDP / DNS -> "DNS", Ether / IP / TCP / Raw -> "TCP"
+    Retourne le protocole le plus précis d'un paquet (Ether / IP / UDP / DNS -> "DNS")
 
     :param packet: paquet capturé avec scapy
     :return: nom du protocole, "Autre" si le paquet ne contient que des données brutes
@@ -99,7 +95,7 @@ def get_protocol(packet: Packet) -> str:
 
 def format_share(count: int, total: int) -> str:
     """
-    Retourne la part d'un nombre de paquets dans le total, en pourcentage
+    Retourne la part d'un nombre de paquets dans le total
 
     :param count: nombre de paquets
     :param total: nombre total de paquets
@@ -111,9 +107,7 @@ def format_share(count: int, total: int) -> str:
 
 def get_sudo_user() -> pwd.struct_passwd | None:
     """
-    Retourne l'utilisateur qui a lancé le programme avec sudo
-
-    :return: son compte (nom, uid, gid, dossier personnel), None si le programme n'a pas été lancé avec sudo
+    Retourne le compte de l'utilisateur qui a lancé sudo, None sans sudo
     """
     sudo_uid = os.environ.get("SUDO_UID")
     if sudo_uid is None:
@@ -123,20 +117,17 @@ def get_sudo_user() -> pwd.struct_passwd | None:
 
 def give_log_files_to(user: pwd.struct_passwd) -> None:
     """
-    Rend les fichiers de log à l'utilisateur : app.log est créé par root dès le démarrage (import de
-    la config), sans ça on ne pourrait plus écrire dedans ni lancer les tests sans sudo
+    Rend à l'utilisateur les fichiers de log créés par root au démarrage
     """
     for handler in logging.getLogger().handlers:
         if isinstance(handler, logging.FileHandler):
-            # follow_symlinks=False : si app.log est un lien, root ne donne pas sa cible (ex : /etc/shadow)
+            # sans follow_symlinks=False, un lien app.log -> /etc/shadow donnerait sa cible à l'utilisateur
             os.chown(handler.baseFilename, user.pw_uid, user.pw_gid, follow_symlinks=False)
 
 
 def drop_privileges() -> None:
     """
-    Abandonne définitivement les droits root pour repasser sous l'utilisateur qui a lancé sudo.
-    Seule l'ouverture du socket de capture a besoin de root : l'analyse des paquets reçus (qui peuvent
-    venir d'un attaquant) et l'écriture des fichiers se font ensuite sans ces droits.
+    Abandonne définitivement les droits root pour repasser sous l'utilisateur qui a lancé sudo
     """
     if os.geteuid() != 0:
         return
@@ -145,7 +136,7 @@ def drop_privileges() -> None:
         logger.warning("Lancé en root sans sudo : pas d'utilisateur vers qui repasser, tout tourne en root")
         return
     give_log_files_to(user)
-    # les groupes et le gid d'abord : une fois l'uid changé, on n'a plus le droit de les modifier
+    # groupes et gid d'abord : une fois l'uid changé, on n'a plus le droit de les modifier
     os.initgroups(user.pw_name, user.pw_gid)
     os.setgid(user.pw_gid)
     os.setuid(user.pw_uid)

@@ -6,39 +6,34 @@ from src.tp1.utils.config import logger
 from src.tp1.utils.detection import TrafficAnalyzer
 from src.tp1.utils.lib import choose_interface, get_protocol
 
-# Durée de la capture par défaut, sans limite de paquets : le PCAP rejoué par le conteneur attaquant
-# peut dépasser la centaine de paquets. Ctrl+C arrête la capture avant la fin.
 TIMEOUT = 60
 
 
 class Capture:
     def __init__(self, pcap_file: str | None = None, timeout: int = TIMEOUT) -> None:
-        self.pcap_file = pcap_file  # fichier à analyser au lieu d'écouter le réseau
+        self.pcap_file = pcap_file
         self.timeout = timeout
         self.interface = choose_interface() if pcap_file is None else ""
-        self.listen_socket = None  # socket de capture, ouvert en root par open_socket()
-        # chaque paquet est compté et analysé à son arrivée, puis oublié (voir add_packet)
+        self.listen_socket = None
         self.protocol_counts = Counter()
         self.analyzer = TrafficAnalyzer()
-        self.protocols = {}  # {protocole: nombre de paquets}
-        self.attacks = []  # tentatives d'attaque trouvées par analyse()
-        self.flag = None  # marqueur ESGI{...} trouvé dans le trafic
+        self.protocols = {}
+        self.attacks = []
+        self.flag = None
         self.summary = ""
 
     def open_socket(self) -> None:
         """
-        Ouvre le socket de capture sur l'interface : c'est la seule étape qui a besoin des droits root
-        (rien à ouvrir pour un fichier pcap)
+        Ouvre le socket de capture : la seule étape qui a besoin des droits root
         """
         if self.pcap_file is None:
             self.listen_socket = conf.L2listen(iface=self.interface)
 
     def capture_traffic(self) -> None:
         """
-        Capture network traffic from an interface (ou lit les paquets du fichier pcap)
+        Capture network traffic from an interface (ou lit le fichier pcap)
         """
         if self.pcap_file is not None:
-            # le fichier est lu paquet par paquet, sans le charger en entier en mémoire
             sniff(offline=self.pcap_file, prn=self.add_packet, store=False)
             logger.info(f"{self.get_packet_count()} paquets lus dans {self.pcap_file}")
             return
@@ -57,8 +52,7 @@ class Capture:
 
     def add_packet(self, packet: Packet) -> None:
         """
-        Traite un paquet dès qu'il arrive : il est compté et analysé puis oublié, la mémoire utilisée
-        ne grossit donc pas avec la durée de la capture (avant, tous les paquets étaient gardés)
+        Compte et analyse un paquet dès qu'il arrive, sans le garder en mémoire
         """
         self.protocol_counts[get_protocol(packet)] += 1
         self.analyzer.add_packet(packet)
@@ -71,7 +65,7 @@ class Capture:
 
     def get_source(self) -> str:
         """
-        Retourne d'où viennent les paquets : l'interface écoutée ou le fichier pcap lu
+        Retourne l'interface écoutée ou le fichier pcap lu
         """
         return f"fichier {self.pcap_file}" if self.pcap_file is not None else f"interface {self.interface}"
 
@@ -94,8 +88,7 @@ class Capture:
         Si un trafic est illégitime (exemple : Injection SQL, ARP Spoofing, etc)
         a. Noter la tentative d'attaque.
         b. Relever le protocole ainsi que l'adresse réseau/physique de l'attaquant.
-        c. (FACULTATIF) Opérer le blocage de la machine attaquante (pas fait : une fausse alerte
-           couperait une machine légitime, la passerelle par exemple)
+        c. (FACULTATIF) Opérer le blocage de la machine attaquante.
         Sinon afficher que tout va bien
         """
         self.protocols = self.sort_network_protocols()
@@ -129,7 +122,6 @@ class Capture:
         if total == 0:
             return f"Aucun paquet capturé ({self.get_source()})."
 
-        # le dictionnaire est trié donc le premier protocole est le plus utilisé
         most_used = next(iter(self.protocols))
         summary = (
             f"{total} paquets ont été analysés ({self.get_source()}). "
