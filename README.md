@@ -58,7 +58,9 @@ Les logs sont aussi écrits dans `app.log`.
 ### Détection des attaques
 
 - **ARP spoofing** : une MAC qui annonce plusieurs IP (elle se fait passer pour la passerelle et la
-  victime), ou qui annonce une IP déjà annoncée par une autre MAC en insistant plus qu'elle
+  victime), ou qui annonce une IP déjà annoncée par une autre MAC. Dans ce cas on accuse celle qui fait
+  aussi le scan ou l'injection, sinon la nouvelle (comme arpwatch : la première MAC vue est la vraie).
+  On compte pas le nombre d'annonces, sinon la vraie passerelle qui en fait plein se faisait accuser
 - **scan SYN** : une IP qui envoie des SYN (sans ACK) vers au moins 10 ports différents
 - **injection SQL** : du SQL typique d'une injection (`' OR '1'='1`, `UNION SELECT`, `'--`...) dans une
   requête HTTP. Le HTTPS est chiffré donc on peut pas regarder dedans
@@ -89,10 +91,20 @@ Pour trouver le protocole d'un paquet on prend sa couche la plus "haute" en igno
 (Raw) et le padding : `Ether / IP / UDP / DNS` ça donne DNS, `Ether / IP / TCP / Raw` ça donne TCP.
 Comme ça on voit tous les types de paquets (IPv6, NBNS, LLMNR...) et pas juste une liste fixe.
 
-Côté sécu, le programme a besoin de root seulement pour ouvrir le socket de capture. Juste après il
-repasse sous l'utilisateur qui a lancé sudo (comme `tcpdump -Z`), donc les paquets reçus (qui peuvent
-venir d'un attaquant) sont analysés sans les droits root, et les fichiers créés appartiennent à
-l'utilisateur et pas à root.
+Côté sécu :
+
+- le programme a besoin de root seulement pour ouvrir le socket de capture. Juste après il repasse sous
+  l'utilisateur qui a lancé sudo (comme `tcpdump -Z`), donc les paquets reçus (qui peuvent venir d'un
+  attaquant) sont analysés sans les droits root. S'il est lancé direct en root sans sudo, ça prévient
+- les rapports sont en droits 600 (lisibles que par nous) vu qu'ils contiennent le marqueur du binôme
+- un paquet ARP malformé faisait planter l'analyse (donc un attaquant pouvait couper l'outil), il est
+  ignoré maintenant
+- le marqueur doit faire 100 caractères imprimables max : sinon un faux marqueur pouvait envoyer des
+  codes au terminal via les logs, ou bloquer la recherche plusieurs secondes avec un paquet piégé
+
+Côté perf, les paquets sont traités un par un pendant la capture (comptés, analysés puis oubliés) et
+pas tous gardés en mémoire jusqu'à la fin. Sur un pcap de 58 700 paquets : 22 s et 125 Mo de RAM au
+lieu de 34 s et 640 Mo, et la mémoire grossit plus avec la durée de la capture.
 
 Le code est dans `src/tp1/` :
 
