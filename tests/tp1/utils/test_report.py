@@ -1,4 +1,5 @@
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -241,14 +242,17 @@ def test_given_graph_when_concat_report_then_pdf_has_a_bar_per_protocol():
         assert text in content
 
 
-def test_when_importing_the_tool_then_cairo_is_not_needed():
+def test_when_importing_the_tool_then_cairo_is_not_needed(tmp_path):
     # Given
     # le bac à sable de correction n'a pas la bibliothèque système cairo : on interdit son import
     code = "import sys; sys.modules['cairosvg'] = sys.modules['cairocffi'] = None; import src.tp1.main"
-    repository_root = Path(__file__).resolve().parents[3]
+    environment = {**os.environ, "PYTHONPATH": str(Path(__file__).resolve().parents[3])}
 
     # When
-    result = subprocess.run([sys.executable, "-c", code], cwd=repository_root, capture_output=True, text=True)
+    # depuis un dossier temporaire : l'import crée app.log dans le dossier courant
+    result = subprocess.run(
+        [sys.executable, "-c", code], cwd=tmp_path, env=environment, capture_output=True, text=True
+    )
 
     # Then
     assert result.returncode == 0, result.stderr
