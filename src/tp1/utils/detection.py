@@ -1,11 +1,27 @@
+import re
 from collections import Counter, defaultdict
 from dataclasses import dataclass
+from urllib.parse import unquote_plus
 
-from scapy.all import ARP, IP, TCP, Ether, IPv6, Packet
+from scapy.all import ARP, IP, TCP, Ether, IPv6, Packet, Raw
+
+from src.tp1.utils.lib import get_protocol
 
 UNKNOWN = "inconnue"
 # Nombre de ports différents visés par des SYN à partir duquel on considère que c'est un scan
 SYN_SCAN_MIN_PORTS = 10
+HTTP_METHODS = ("GET ", "POST ", "PUT ", "PATCH ", "DELETE ", "HEAD ", "OPTIONS ")
+# Morceaux de SQL typiques d'une injection
+SQL_INJECTION_PATTERN = re.compile(
+    r"""["']\s*(or|and)\s*["']?\w*["']?\s*="""  # ' OR '1'='1, ' AND 1=1, ' or ''='
+    r"|\b(or|and)\s+\d+\s*=\s*\d+"  # OR 1=1 sans guillemet (champ numérique)
+    r"|\bunion\s+(all\s+)?select\b"  # UNION SELECT : lire une autre table
+    r"|;\s*(drop|delete|insert|update|select)\b"  # ; DROP TABLE : requête ajoutée à la suite
+    r"""|["']\s*(--|#)(\s|&|$)|["']\s*/\*"""  # ' -- : la fin de la vraie requête est commentée
+    r"|\b(sleep|pg_sleep|benchmark)\s*\("  # injection à l'aveugle, basée sur le temps de réponse
+    r"|\binformation_schema\b",  # lecture de la structure de la base
+    re.IGNORECASE,
+)
 
 
 @dataclass(frozen=True)
@@ -156,6 +172,45 @@ def detect_syn_scan(packets: list[Packet]) -> list[Attack]:
     ]
 
 
+def get_http_request(packet: Packet) -> str | None:
+    """
+    Retourne la requête HTTP en clair portée par un paquet, URL décodée (%27 -> '). Le trafic chiffré
+    (HTTPS) n'est pas analysable : y chercher du SQL donnerait des alertes au hasard des octets chiffrés
+
+    :return: texte de la requête, None si le paquet ne contient pas de requête HTTP
+    """
+    if not (packet.haslayer(TCP) and packet.haslayer(Raw)):
+        return None
+    payload = bytes(packet[Raw].load).decode("latin-1")
+    if not payload.startswith(HTTP_METHODS):
+        return None
+    return unquote_plus(payload)
+
+
+def detect_sql_injection(packets: list[Packet]) -> list[Attack]:
+    """
+    Injection SQL : l'attaquant glisse du SQL dans une requête HTTP (URL, formulaire) pour lire ou
+    modifier la base de données du site. Une alerte par attaquant, avec sa première requête suspecte
+    """
+    attacks = {}  # IP de l'attaquant -> attaque
+    for packet in packets:
+        request = get_http_request(packet)
+        source_ip = get_source_ip(packet)
+        if request is None or source_ip in attacks or not SQL_INJECTION_PATTERN.search(request):
+            continue
+        request_line = request.splitlines()[0][:100]
+        # !r échappe les caractères de contrôle envoyés par l'attaquant (pas de piège dans le terminal)
+        attacks[source_ip] = Attack(
+            attack_type="sql_injection",
+            name="Injection SQL",
+            protocol=get_protocol(packet),
+            attacker_ip=source_ip,
+            attacker_mac=get_source_mac(packet),
+            details=f"requête HTTP vers {get_destination_ip(packet)} : {request_line!r}",
+        )
+    return list(attacks.values())
+
+
 def detect_attacks(packets: list[Packet]) -> list[Attack]:
     """
     Cherche toutes les attaques connues dans les paquets capturés
@@ -163,4 +218,4 @@ def detect_attacks(packets: list[Packet]) -> list[Attack]:
     :param packets: paquets capturés
     :return: tentatives d'attaque trouvées, liste vide si tout va bien
     """
-    return detect_arp_spoofing(packets) + detect_syn_scan(packets)
+    return detect_arp_spoofing(packets) + detect_syn_scan(packets) + detect_sql_injection(packets)

@@ -1,6 +1,12 @@
-from scapy.all import ARP, IP, TCP, Ether
+import pytest
+from scapy.all import ARP, IP, TCP, Ether, Raw
 
-from src.tp1.utils.detection import detect_arp_spoofing, detect_attacks, detect_syn_scan
+from src.tp1.utils.detection import (
+    detect_arp_spoofing,
+    detect_attacks,
+    detect_sql_injection,
+    detect_syn_scan,
+)
 
 GATEWAY_IP, GATEWAY_MAC = "192.168.1.1", "00:00:00:00:00:01"
 VICTIM_IP, VICTIM_MAC = "192.168.1.10", "00:00:00:00:00:10"
@@ -129,3 +135,65 @@ def test_given_few_ports_when_detect_syn_scan_then_nothing_is_found():
 
     # Then
     assert result == []
+
+
+def http(payload: bytes, source_ip: str = ATTACKER_IP) -> Ether:
+    """
+    Paquet TCP vers le port 80 de la victime contenant payload
+    """
+    return Ether(src=ATTACKER_MAC) / IP(src=source_ip, dst=VICTIM_IP) / TCP(dport=80) / Raw(payload)
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        b"GET /login?user=admin%27%20OR%20%271%27%3D%271&pass=x HTTP/1.1\r\nHost: victime\r\n\r\n",
+        b"POST /login HTTP/1.1\r\nHost: victime\r\n\r\nusername=admin'--&password=x",
+        b"GET /article?id=1+UNION+SELECT+username,password+FROM+users HTTP/1.1\r\n\r\n",
+        b"GET /article?id=1 OR 1=1 HTTP/1.1\r\n\r\n",
+    ],
+)
+def test_given_injection_in_http_request_when_detect_sql_injection_then_attacker_is_found(payload):
+    # Given
+    packets = [http(payload)]
+
+    # When
+    result = detect_sql_injection(packets)
+
+    # Then
+    assert len(result) == 1
+    attack = result[0]
+    assert (attack.attack_type, attack.protocol, attack.get_attacker()) == (
+        "sql_injection",
+        "TCP",
+        ATTACKER_IP,
+    )
+    assert attack.attacker_mac == ATTACKER_MAC
+    assert attack.details.startswith(f"requête HTTP vers {VICTIM_IP} : ")
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        b"GET /index.html HTTP/1.1\r\nHost: site\r\nAccept: text/html,*/*;q=0.8\r\n\r\n",
+        b'POST /api HTTP/1.1\r\nContent-Type: application/json\r\n\r\n{"color":"#ff0000","name":"andy"}',
+        b"\x17\x03\x03 ' -- donnees chiffrees ' OR '1'='1",
+    ],
+)
+def test_given_normal_or_encrypted_traffic_when_detect_sql_injection_then_nothing_is_found(payload):
+    # When
+    result = detect_sql_injection([http(payload)])
+
+    # Then
+    assert result == []
+
+
+def test_given_several_injections_from_same_attacker_when_detect_sql_injection_then_one_alert():
+    # Given
+    packets = [http(b"GET /?id=1' OR '1'='1 HTTP/1.1\r\n\r\n")] * 5
+
+    # When
+    result = detect_sql_injection(packets)
+
+    # Then
+    assert len(result) == 1
