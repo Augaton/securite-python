@@ -1,7 +1,7 @@
 from unittest.mock import patch
 
 import pytest
-from scapy.all import ARP, DNS, IP, TCP, UDP, Ether
+from scapy.all import ARP, DNS, IP, TCP, UDP, Ether, Raw
 
 from src.tp1.utils.capture import Capture
 
@@ -138,3 +138,15 @@ def test_given_legit_traffic_when_analyse_then_summary_says_everything_is_fine()
     # Then
     assert capture.attacks == []
     assert capture.summary.endswith("Aucune attaque détectée, tout va bien.")
+
+
+def test_given_marker_in_traffic_when_analyse_then_flag_is_kept():
+    # Given
+    capture = Capture()
+    capture.packets = [Ether() / IP() / TCP() / Raw(b"GET /?q=ESGI{abc123} HTTP/1.1\r\n\r\n")]
+
+    # When
+    capture.analyse()
+
+    # Then
+    assert capture.flag == "ESGI{abc123}"

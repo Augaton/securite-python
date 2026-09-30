@@ -6,6 +6,7 @@ from src.tp1.utils.detection import (
     detect_attacks,
     detect_sql_injection,
     detect_syn_scan,
+    find_flag,
 )
 
 GATEWAY_IP, GATEWAY_MAC = "192.168.1.1", "00:00:00:00:00:01"
@@ -197,3 +198,29 @@ def test_given_several_injections_from_same_attacker_when_detect_sql_injection_t
 
     # Then
     assert len(result) == 1
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        b"GET /?id=1'+UNION+SELECT+'ESGI%7Bs3ed_b1n0me%7D'-- HTTP/1.1\r\n\r\n",
+        b"POST /login HTTP/1.1\r\n\r\nuser=admin' OR '1'='1' -- ESGI{s3ed_b1n0me}",
+    ],
+)
+def test_given_marker_in_traffic_when_find_flag_then_return_it(payload):
+    # Given
+    packets = [http(b"GET / HTTP/1.1\r\n\r\n"), http(payload)]
+
+    # When
+    result = find_flag(packets)
+
+    # Then
+    assert result == "ESGI{s3ed_b1n0me}"
+
+
+def test_given_no_marker_when_find_flag_then_return_none():
+    # When
+    result = find_flag([http(b"GET / HTTP/1.1\r\n\r\n")])
+
+    # Then
+    assert result is None

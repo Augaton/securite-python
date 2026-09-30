@@ -1,7 +1,7 @@
 import re
 from collections import Counter, defaultdict
 from dataclasses import dataclass
-from urllib.parse import unquote_plus
+from urllib.parse import unquote, unquote_plus
 
 from scapy.all import ARP, IP, TCP, Ether, IPv6, Packet, Raw
 
@@ -22,6 +22,8 @@ SQL_INJECTION_PATTERN = re.compile(
     r"|\binformation_schema\b",  # lecture de la structure de la base
     re.IGNORECASE,
 )
+# Marqueur unique glissé par le conteneur attaquant dans son injection SQL
+FLAG_PATTERN = re.compile(r"ESGI\{[^}\s]*\}")
 
 
 @dataclass(frozen=True)
@@ -209,6 +211,20 @@ def detect_sql_injection(packets: list[Packet]) -> list[Attack]:
             details=f"requête HTTP vers {get_destination_ip(packet)} : {request_line!r}",
         )
     return list(attacks.values())
+
+
+def find_flag(packets: list[Packet]) -> str | None:
+    """
+    Cherche le marqueur unique ESGI{...} dans le trafic, même encodé dans une URL (%7B -> {)
+
+    :param packets: paquets capturés
+    :return: le marqueur, None s'il n'est dans aucun paquet
+    """
+    for packet in packets:
+        match = FLAG_PATTERN.search(unquote(bytes(packet).decode("latin-1")))
+        if match:
+            return match.group(0)
+    return None
 
 
 def detect_attacks(packets: list[Packet]) -> list[Attack]:

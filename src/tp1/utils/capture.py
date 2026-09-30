@@ -1,7 +1,7 @@
 from scapy.all import sniff
 
 from src.tp1.utils.config import logger
-from src.tp1.utils.detection import detect_attacks
+from src.tp1.utils.detection import detect_attacks, find_flag
 from src.tp1.utils.lib import choose_interface, get_protocol
 
 # La capture s'arrête au bout de 100 paquets ou de 30 secondes
@@ -15,6 +15,7 @@ class Capture:
         self.packets = []
         self.protocols = {}  # {protocole: nombre de paquets}
         self.attacks = []  # tentatives d'attaque trouvées par analyse()
+        self.flag = None  # marqueur ESGI{...} trouvé dans le trafic
         self.summary = ""
 
     def capture_traffic(self) -> None:
@@ -64,6 +65,10 @@ class Capture:
             logger.warning(f"Tentative d'attaque : {attack.describe()}")
         if not self.attacks:
             logger.info("Aucune attaque détectée, tout va bien")
+
+        self.flag = find_flag(self.packets)
+        if self.flag is not None:
+            logger.info(f"Marqueur trouvé : {self.flag}")
 
         self.summary = self._gen_summary()
 
