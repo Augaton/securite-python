@@ -1,5 +1,5 @@
 import re
-from collections import Counter, defaultdict
+from collections import defaultdict
 from dataclasses import dataclass
 from urllib.parse import unquote, unquote_plus
 
@@ -102,43 +102,46 @@ def is_ipv4_arp(arp: ARP) -> bool:
     return arp.hwtype == 1 and arp.ptype == 0x0800 and arp.hwlen in (None, 6) and arp.plen in (None, 4)
 
 
-def count_arp_announces(packets: list[Packet]) -> tuple[dict[str, Counter], dict[str, set[str]]]:
+def count_arp_announces(packets: list[Packet]) -> tuple[dict[str, dict[str, int]], dict[str, set[str]]]:
     """
     Chaque paquet ARP annonce "l'IP psrc est à la MAC hwsrc" (0.0.0.0 = machine sans IP, ignorée).
 
-    :return: les MAC annoncées pour chaque IP (avec leur nombre d'annonces, dans l'ordre d'arrivée)
+    :return: les MAC annoncées pour chaque IP avec leur rang d'arrivée (0 = première vue),
              et les IP annoncées par chaque MAC
     """
-    macs_by_ip = defaultdict(Counter)
+    macs_by_ip = defaultdict(dict)
     ips_by_mac = defaultdict(set)
     for packet in packets:
         if packet.haslayer(ARP) and is_ipv4_arp(packet[ARP]) and packet[ARP].psrc != "0.0.0.0":
-            macs_by_ip[packet[ARP].psrc][packet[ARP].hwsrc] += 1
-            ips_by_mac[packet[ARP].hwsrc].add(packet[ARP].psrc)
+            ip, mac = packet[ARP].psrc, packet[ARP].hwsrc
+            macs_by_ip[ip].setdefault(mac, len(macs_by_ip[ip]))
+            ips_by_mac[mac].add(ip)
     return macs_by_ip, ips_by_mac
 
 
-def find_arp_spoofers(packets: list[Packet]) -> dict[str, set[str]]:
+def find_arp_spoofers(packets: list[Packet], other_attacker_macs: set[str]) -> dict[str, set[str]]:
     """
-    Retourne les MAC qui usurpent des IP, avec les IP usurpées. Une MAC est suspecte si elle :
-    - annonce plusieurs IP : elle se fait passer pour plusieurs machines (ex : passerelle + victime)
-    - ou annonce une IP déjà annoncée par une autre MAC, en insistant plus qu'elle
+    Retourne les MAC qui usurpent des IP, avec les IP usurpées. Une MAC usurpe :
+    - toutes les IP qu'elle annonce si elle en annonce plusieurs (ex : passerelle + victime)
+    - une IP déjà annoncée par une autre MAC. On accuse la MAC déjà suspecte (plusieurs IP annoncées,
+      ou source d'une autre attaque), sinon la dernière arrivée : comme arpwatch, la première MAC vue
+      pour une IP est la vraie. Le nombre d'annonces ne compte pas : la vraie passerelle peut en faire
+      beaucoup plus que l'attaquant
     """
     macs_by_ip, ips_by_mac = count_arp_announces(packets)
+    several_ips_macs = {mac for mac, ips in ips_by_mac.items() if len(ips) > 1}
+    suspect_macs = several_ips_macs | other_attacker_macs
     spoofed_ips_by_mac = defaultdict(set)
-    for mac, ips in ips_by_mac.items():
-        if len(ips) > 1:
-            spoofed_ips_by_mac[mac] |= ips - {find_ip_of_mac(packets, mac)}
-    for ip, mac_counts in macs_by_ip.items():
-        if len(mac_counts) > 1:
-            macs = list(mac_counts)
-            # à égalité on accuse la dernière MAC arrivée : la première est sûrement la vraie
-            spoofer = max(macs, key=lambda mac: (mac_counts[mac], macs.index(mac)))
+    for mac in several_ips_macs:
+        spoofed_ips_by_mac[mac] |= ips_by_mac[mac] - {find_ip_of_mac(packets, mac)}
+    for ip, macs in macs_by_ip.items():
+        if len(macs) > 1:
+            spoofer = max(macs, key=lambda mac: (mac in suspect_macs, macs[mac]))
             spoofed_ips_by_mac[spoofer].add(ip)
     return spoofed_ips_by_mac
 
 
-def detect_arp_spoofing(packets: list[Packet]) -> list[Attack]:
+def detect_arp_spoofing(packets: list[Packet], other_attacker_macs: set[str] | None = None) -> list[Attack]:
     """
     ARP spoofing : l'attaquant envoie de fausses annonces ARP pour recevoir le trafic destiné à une
     autre machine (souvent la passerelle) et l'espionner ou le modifier (homme du milieu)
@@ -152,7 +155,7 @@ def detect_arp_spoofing(packets: list[Packet]) -> list[Attack]:
             attacker_mac=mac,
             details=f"se fait passer pour {', '.join(sorted(spoofed_ips))}",
         )
-        for mac, spoofed_ips in find_arp_spoofers(packets).items()
+        for mac, spoofed_ips in find_arp_spoofers(packets, other_attacker_macs or set()).items()
     ]
 
 
@@ -244,4 +247,7 @@ def detect_attacks(packets: list[Packet]) -> list[Attack]:
     :param packets: paquets capturés
     :return: tentatives d'attaque trouvées, liste vide si tout va bien
     """
-    return detect_arp_spoofing(packets) + detect_syn_scan(packets) + detect_sql_injection(packets)
+    ip_attacks = detect_syn_scan(packets) + detect_sql_injection(packets)
+    # la MAC d'un attaquant déjà repéré (scan, injection) désigne l'usurpateur en cas de doute sur l'ARP
+    other_attacker_macs = {attack.attacker_mac for attack in ip_attacks}
+    return detect_arp_spoofing(packets, other_attacker_macs) + ip_attacks

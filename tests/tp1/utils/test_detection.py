@@ -237,3 +237,28 @@ def test_given_malformed_arp_packet_when_detect_attacks_then_it_is_ignored_witho
 
     # Then
     assert result == []
+
+
+def test_given_real_owner_announcing_often_when_detect_arp_spoofing_then_newcomer_is_accused():
+    # Given
+    packets = [arp_reply(GATEWAY_IP, GATEWAY_MAC)] * 10 + [arp_reply(GATEWAY_IP, ATTACKER_MAC)]
+
+    # When
+    result = detect_arp_spoofing(packets)
+
+    # Then
+    assert [attack.attacker_mac for attack in result] == [ATTACKER_MAC]
+
+
+def test_given_spoofing_before_real_reply_when_detect_attacks_then_mac_of_scanner_is_accused():
+    # Given
+    spoofed_replies = [arp_reply(GATEWAY_IP, ATTACKER_MAC)] * 3
+    real_reply = [arp_reply(GATEWAY_IP, GATEWAY_MAC)]
+    scan = [syn(ATTACKER_IP, VICTIM_IP, port) for port in range(1, 21)]
+
+    # When
+    result = detect_attacks(spoofed_replies + real_reply + scan)
+
+    # Then
+    arp_attacks = [attack for attack in result if attack.attack_type == "arp_spoofing"]
+    assert [attack.attacker_mac for attack in arp_attacks] == [ATTACKER_MAC]
