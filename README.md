@@ -2,7 +2,7 @@
 
 Les TP de sécu python (ESGI 4A), fait à partir du template du prof.
 
-- TP1 : capture réseau avec scapy + graphique pygal + rapport pdf -> fait
+- TP1 : capture réseau avec scapy + graphique pygal + rapport pdf + détection d'attaques -> fait
 - TP2 : pas encore fait
 - TP3 : les captchas, pas encore fait
 
@@ -20,12 +20,13 @@ poetry install
 
 ## TP1
 
-Le programme écoute une interface réseau avec scapy, compte le nombre de paquets par protocole, fait un
-graphique avec pygal et génère un rapport pdf avec un résumé, un tableau et le graphique.
+Le programme écoute une interface réseau avec scapy, compte le nombre de paquets par protocole, cherche
+les attaques (ARP spoofing, scan SYN, injection SQL), fait un graphique avec pygal et génère un rapport pdf
+(résumé, tableau, légitimité du trafic et graphique) + un `report.json` pour le correcteur.
 
 ### Lancer le TP1
 
-Il faut être root pour capturer des paquets, donc depuis la racine du projet :
+Il faut être root pour capturer des paquets, donc :
 
 ```bash
 sudo "$(poetry env info --path)/bin/tp1"
@@ -33,18 +34,54 @@ sudo "$(poetry env info --path)/bin/tp1"
 
 (`sudo poetry run tp1` marche pas parce que root n'a pas poetry, d'où le chemin complet)
 
+Options :
+
+- `--timeout 120` : durée de la capture en secondes (60 par défaut), à mettre assez long pour que le
+  conteneur attaquant ait le temps de rejouer tout son PCAP. Ctrl+C arrête la capture avant la fin.
+- `--pcap fichier.pcap` : analyser un fichier pcap au lieu d'écouter le réseau (pas besoin de sudo),
+  pratique pour tester
+
 Ensuite :
 
 1. la liste des interfaces s'affiche, on tape le numéro (ou le nom) de celle qu'on veut écouter, ou Entrée
    pour prendre celle par défaut (si le choix est pas bon ça redemande)
-2. ça capture 100 paquets ou pendant 30 secondes max (modifiable dans `src/tp1/utils/capture.py`)
-3. le nombre de paquets par protocole s'affiche dans les logs
+2. ça capture pendant 60 secondes (ou le `--timeout`), sans limite de paquets
+3. le nombre de paquets par protocole et les attaques trouvées s'affichent dans les logs
 4. les fichiers sont créés dans le dossier où on lance le programme :
+   - `report.pdf` : le rapport
+   - `report.json` : le résultat pour le correcteur
    - `graph.svg` : le graphique, à ouvrir dans un navigateur
    - `graph.png` : le graphique en image (celui qui est dans le pdf)
-   - `report.pdf` : le rapport
 
 Les logs sont aussi écrits dans `app.log`.
+
+### Détection des attaques
+
+- **ARP spoofing** : une MAC qui annonce plusieurs IP (elle se fait passer pour la passerelle et la
+  victime), ou qui annonce une IP déjà annoncée par une autre MAC en insistant plus qu'elle
+- **scan SYN** : une IP qui envoie des SYN (sans ACK) vers au moins 10 ports différents
+- **injection SQL** : du SQL typique d'une injection (`' OR '1'='1`, `UNION SELECT`, `'--`...) dans une
+  requête HTTP. Le HTTPS est chiffré donc on peut pas regarder dedans
+- le **marqueur** `ESGI{...}` est cherché dans tous les paquets (même encodé dans une URL)
+
+Dans le pdf chaque protocole est marqué légitime ou illégitime, et chaque attaque est notée avec son
+protocole et l'IP / la MAC de l'attaquant (sinon ça dit que tout va bien). Le blocage de l'attaquant
+(facultatif dans la consigne) est pas fait : une fausse alerte pourrait couper la passerelle.
+
+Le `report.json` a le format demandé, avec la MAC de l'attaquant pour l'ARP spoofing et son IP pour le
+scan et l'injection :
+
+```json
+{
+  "protocols": {"TCP": 105, "ARP": 13, "DNS": 5},
+  "attacks": [
+    {"type": "arp_spoofing", "attacker": "de:ad:be:ef:00:66"},
+    {"type": "syn_scan", "attacker": "10.10.0.66"},
+    {"type": "sql_injection", "attacker": "10.10.0.66"}
+  ],
+  "flag": "ESGI{...}"
+}
+```
 
 ### Comment ça marche
 
@@ -52,13 +89,19 @@ Pour trouver le protocole d'un paquet on prend sa couche la plus "haute" en igno
 (Raw) et le padding : `Ether / IP / UDP / DNS` ça donne DNS, `Ether / IP / TCP / Raw` ça donne TCP.
 Comme ça on voit tous les types de paquets (IPv6, NBNS, LLMNR...) et pas juste une liste fixe.
 
+Côté sécu, le programme a besoin de root seulement pour ouvrir le socket de capture. Juste après il
+repasse sous l'utilisateur qui a lancé sudo (comme `tcpdump -Z`), donc les paquets reçus (qui peuvent
+venir d'un attaquant) sont analysés sans les droits root, et les fichiers créés appartiennent à
+l'utilisateur et pas à root.
+
 Le code est dans `src/tp1/` :
 
-- `main.py` : lance tout
-- `utils/lib.py` : choix de l'interface + protocole d'un paquet
+- `main.py` : lance tout (et lit les options)
+- `utils/lib.py` : choix de l'interface, protocole d'un paquet, abandon des droits root
 - `utils/capture.py` : capture et comptage des paquets
+- `utils/detection.py` : détection des attaques et du marqueur
 - `utils/graph.py` : le graphique pygal
-- `utils/report.py` : le rapport pdf (fpdf2)
+- `utils/report.py` : le rapport pdf (fpdf2) et le report.json
 
 ## Tests et pre-commit
 
@@ -71,6 +114,6 @@ Pas besoin d'être root pour les tests, la capture est simulée.
 
 ## Problèmes
 
-- si les fichiers ont été créés par root (`app.log`, `report.pdf`...) on peut plus les modifier sans sudo,
-  il faut faire `sudo chown $USER app.log report.pdf graph.svg graph.png`
+- si des fichiers ont été créés par root avec une ancienne version (`app.log`, `report.pdf`...) on peut
+  plus les modifier sans sudo, il faut faire `sudo chown $USER app.log report.pdf graph.svg graph.png`
 - erreur `no library called "cairo-2" was found` -> installer cairo (voir installation)
