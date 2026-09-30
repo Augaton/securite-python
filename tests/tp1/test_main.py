@@ -1,4 +1,3 @@
-import os
 import sys
 from pathlib import Path
 from unittest.mock import patch
@@ -6,17 +5,6 @@ from unittest.mock import patch
 import pytest
 
 from src.tp1.main import main, parse_arguments
-
-
-@pytest.fixture(autouse=True)
-def restore_umask():
-    """
-    main() change le umask du processus : on remet l'ancien pour ne pas influencer les autres tests
-    """
-    previous_umask = os.umask(0o022)
-    os.umask(previous_umask)
-    yield
-    os.umask(previous_umask)
 
 
 @patch("src.tp1.main.Report")
@@ -89,17 +77,6 @@ def test_when_main_then_root_is_dropped_between_socket_opening_and_capture(
 
     # Then
     assert steps == ["open_socket", "drop_privileges", "capture_traffic"]
-
-
-@patch("src.tp1.main.Report")
-@patch("src.tp1.main.Capture")
-def test_when_main_then_generated_files_are_private(mock_capture, mock_report):
-    # When
-    with patch("src.tp1.main.os.umask") as mock_umask:
-        main([])
-
-    # Then
-    mock_umask.assert_called_once_with(0o077)
 
 
 @pytest.mark.parametrize(

@@ -96,7 +96,6 @@ Côté sécu :
 - le programme a besoin de root seulement pour ouvrir le socket de capture. Juste après il repasse sous
   l'utilisateur qui a lancé sudo (comme `tcpdump -Z`), donc les paquets reçus (qui peuvent venir d'un
   attaquant) sont analysés sans les droits root. S'il est lancé direct en root sans sudo, ça prévient
-- les rapports sont en droits 600 (lisibles que par nous) vu qu'ils contiennent le marqueur du binôme
 - un paquet ARP malformé faisait planter l'analyse (donc un attaquant pouvait couper l'outil), il est
   ignoré maintenant
 - le marqueur doit faire 100 caractères imprimables max : sinon un faux marqueur pouvait envoyer des
