@@ -3,13 +3,7 @@ import time
 import pytest
 from scapy.all import ARP, IP, TCP, Ether, Raw
 
-from src.tp1.utils.detection import (
-    detect_arp_spoofing,
-    detect_attacks,
-    detect_sql_injection,
-    detect_syn_scan,
-    find_flag,
-)
+from src.tp1.utils.detection import analyse_packets
 
 GATEWAY_IP, GATEWAY_MAC = "192.168.1.1", "00:00:00:00:00:01"
 VICTIM_IP, VICTIM_MAC = "192.168.1.10", "00:00:00:00:00:10"
@@ -28,7 +22,7 @@ def test_given_legit_arp_traffic_when_detect_attacks_then_nothing_is_found():
     packets = [arp_reply(GATEWAY_IP, GATEWAY_MAC), arp_reply(VICTIM_IP, VICTIM_MAC)]
 
     # When
-    result = detect_attacks(packets)
+    result = analyse_packets(packets).get_attacks()
 
     # Then
     assert result == []
@@ -39,7 +33,7 @@ def test_given_mac_claiming_gateway_and_victim_when_detect_arp_spoofing_then_att
     packets = [arp_reply(GATEWAY_IP, ATTACKER_MAC), arp_reply(VICTIM_IP, ATTACKER_MAC)] * 3
 
     # When
-    result = detect_arp_spoofing(packets)
+    result = analyse_packets(packets).get_arp_spoofing_attacks()
 
     # Then
     assert len(result) == 1
@@ -54,7 +48,7 @@ def test_given_gateway_ip_claimed_again_by_other_mac_when_detect_arp_spoofing_th
     packets = [arp_reply(GATEWAY_IP, GATEWAY_MAC)] + [arp_reply(GATEWAY_IP, ATTACKER_MAC)] * 3
 
     # When
-    result = detect_arp_spoofing(packets)
+    result = analyse_packets(packets).get_arp_spoofing_attacks()
 
     # Then
     assert [attack.attacker_mac for attack in result] == [ATTACKER_MAC]
@@ -66,7 +60,7 @@ def test_given_attacker_ip_traffic_when_detect_arp_spoofing_then_its_real_ip_is_
     packets = [own_traffic, arp_reply(ATTACKER_IP, ATTACKER_MAC), arp_reply(GATEWAY_IP, ATTACKER_MAC)]
 
     # When
-    result = detect_arp_spoofing(packets)
+    result = analyse_packets(packets).get_arp_spoofing_attacks()
 
     # Then
     assert result[0].attacker_ip == ATTACKER_IP
@@ -78,7 +72,7 @@ def test_given_arp_probes_without_ip_when_detect_arp_spoofing_then_they_are_igno
     packets = [arp_reply("0.0.0.0", VICTIM_MAC), arp_reply("0.0.0.0", ATTACKER_MAC)]
 
     # When
-    result = detect_arp_spoofing(packets)
+    result = analyse_packets(packets).get_arp_spoofing_attacks()
 
     # Then
     assert result == []
@@ -96,7 +90,7 @@ def test_given_syn_to_many_ports_when_detect_syn_scan_then_scanner_is_found():
     packets = [syn(ATTACKER_IP, VICTIM_IP, port) for port in range(1, 21)]
 
     # When
-    result = detect_syn_scan(packets)
+    result = analyse_packets(packets).get_syn_scan_attacks()
 
     # Then
     assert len(result) == 1
@@ -112,7 +106,7 @@ def test_given_web_browsing_when_detect_syn_scan_then_nothing_is_found():
     packets = [syn(VICTIM_IP, f"93.184.216.{server}", 443) for server in range(1, 30)]
 
     # When
-    result = detect_syn_scan(packets)
+    result = analyse_packets(packets).get_syn_scan_attacks()
 
     # Then
     assert result == []
@@ -123,7 +117,7 @@ def test_given_syn_ack_answers_when_detect_syn_scan_then_they_are_not_counted():
     packets = [syn(VICTIM_IP, ATTACKER_IP, port, flags="SA") for port in range(1, 21)]
 
     # When
-    result = detect_syn_scan(packets)
+    result = analyse_packets(packets).get_syn_scan_attacks()
 
     # Then
     assert result == []
@@ -134,7 +128,7 @@ def test_given_few_ports_when_detect_syn_scan_then_nothing_is_found():
     packets = [syn(ATTACKER_IP, VICTIM_IP, port) for port in range(1, 10)]
 
     # When
-    result = detect_syn_scan(packets)
+    result = analyse_packets(packets).get_syn_scan_attacks()
 
     # Then
     assert result == []
@@ -161,7 +155,7 @@ def test_given_injection_in_http_request_when_detect_sql_injection_then_attacker
     packets = [http(payload)]
 
     # When
-    result = detect_sql_injection(packets)
+    result = analyse_packets(packets).get_sql_injection_attacks()
 
     # Then
     assert len(result) == 1
@@ -185,7 +179,7 @@ def test_given_injection_in_http_request_when_detect_sql_injection_then_attacker
 )
 def test_given_normal_or_encrypted_traffic_when_detect_sql_injection_then_nothing_is_found(payload):
     # When
-    result = detect_sql_injection([http(payload)])
+    result = analyse_packets([http(payload)]).get_sql_injection_attacks()
 
     # Then
     assert result == []
@@ -196,7 +190,7 @@ def test_given_several_injections_from_same_attacker_when_detect_sql_injection_t
     packets = [http(b"GET /?id=1' OR '1'='1 HTTP/1.1\r\n\r\n")] * 5
 
     # When
-    result = detect_sql_injection(packets)
+    result = analyse_packets(packets).get_sql_injection_attacks()
 
     # Then
     assert len(result) == 1
@@ -214,7 +208,7 @@ def test_given_marker_in_traffic_when_find_flag_then_return_it(payload):
     packets = [http(b"GET / HTTP/1.1\r\n\r\n"), http(payload)]
 
     # When
-    result = find_flag(packets)
+    result = analyse_packets(packets).flag
 
     # Then
     assert result == "ESGI{s3ed_b1n0me}"
@@ -222,7 +216,7 @@ def test_given_marker_in_traffic_when_find_flag_then_return_it(payload):
 
 def test_given_no_marker_when_find_flag_then_return_none():
     # When
-    result = find_flag([http(b"GET / HTTP/1.1\r\n\r\n")])
+    result = analyse_packets([http(b"GET / HTTP/1.1\r\n\r\n")]).flag
 
     # Then
     assert result is None
@@ -235,7 +229,7 @@ def test_given_malformed_arp_packet_when_detect_attacks_then_it_is_ignored_witho
     packets = [arp_reply(GATEWAY_IP, ATTACKER_MAC), malformed]
 
     # When
-    result = detect_attacks(packets)
+    result = analyse_packets(packets).get_attacks()
 
     # Then
     assert result == []
@@ -246,7 +240,7 @@ def test_given_real_owner_announcing_often_when_detect_arp_spoofing_then_newcome
     packets = [arp_reply(GATEWAY_IP, GATEWAY_MAC)] * 10 + [arp_reply(GATEWAY_IP, ATTACKER_MAC)]
 
     # When
-    result = detect_arp_spoofing(packets)
+    result = analyse_packets(packets).get_arp_spoofing_attacks()
 
     # Then
     assert [attack.attacker_mac for attack in result] == [ATTACKER_MAC]
@@ -259,7 +253,7 @@ def test_given_spoofing_before_real_reply_when_detect_attacks_then_mac_of_scanne
     scan = [syn(ATTACKER_IP, VICTIM_IP, port) for port in range(1, 21)]
 
     # When
-    result = detect_attacks(spoofed_replies + real_reply + scan)
+    result = analyse_packets(spoofed_replies + real_reply + scan).get_attacks()
 
     # Then
     arp_attacks = [attack for attack in result if attack.attack_type == "arp_spoofing"]
@@ -272,7 +266,7 @@ def test_given_marker_with_control_characters_when_find_flag_then_it_is_rejected
     packets = [http(b"GET /?q=ESGI{\x1b]0;pwned\x07} HTTP/1.1\r\n\r\n")]
 
     # When
-    result = find_flag(packets)
+    result = analyse_packets(packets).flag
 
     # Then
     assert result is None
@@ -284,7 +278,7 @@ def test_given_packet_full_of_marker_starts_when_find_flag_then_search_stays_fas
 
     # When
     start = time.perf_counter()
-    result = find_flag(packets)
+    result = analyse_packets(packets).flag
 
     # Then
     assert result is None

@@ -1,7 +1,7 @@
 from scapy.all import conf, rdpcap, sniff
 
 from src.tp1.utils.config import logger
-from src.tp1.utils.detection import detect_attacks, find_flag
+from src.tp1.utils.detection import analyse_packets
 from src.tp1.utils.lib import choose_interface, get_protocol
 
 # Durée de la capture par défaut, sans limite de paquets : le PCAP rejoué par le conteneur attaquant
@@ -90,13 +90,14 @@ class Capture:
         for protocol, count in self.protocols.items():
             logger.info(f"{protocol} : {count} paquets")
 
-        self.attacks = detect_attacks(self.packets)
+        analyzer = analyse_packets(self.packets)
+        self.attacks = analyzer.get_attacks()
         for attack in self.attacks:
             logger.warning(f"Tentative d'attaque : {attack.describe()}")
         if not self.attacks:
             logger.info("Aucune attaque détectée, tout va bien")
 
-        self.flag = find_flag(self.packets)
+        self.flag = analyzer.flag
         if self.flag is not None:
             logger.info(f"Marqueur trouvé : {self.flag}")
 
