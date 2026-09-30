@@ -192,6 +192,6 @@ def test_given_pcap_and_output_when_main_then_report_json_is_written_where_asked
 
     # Then
     result = json.loads(json_path.read_text())
-    assert result["attacks"] == [{"type": "sql_injection", "attacker": "10.0.0.77"}]
+    assert result["attacks"] == [{"type": "injection_sql", "attacker": "10.0.0.77"}]
     assert (tmp_path / "out" / "report.pdf").exists()
     assert f"report.json écrit dans : {json_path}" in caplog.text

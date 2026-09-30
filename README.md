@@ -82,15 +82,16 @@ protocole et l'IP / la MAC de l'attaquant (sinon ça dit que tout va bien). Le b
 (facultatif dans la consigne) est pas fait : une fausse alerte pourrait couper la passerelle.
 
 Le `report.json` a le format demandé, avec la MAC de l'attaquant pour l'ARP spoofing et son IP pour le
-scan et l'injection :
+scan et l'injection. La consigne donne juste `arp_spoofing` en exemple, les deux autres types reprennent
+ses mots de la même façon (« scan SYN » -> `scan_syn`, « injection SQL » -> `injection_sql`) :
 
 ```json
 {
   "protocols": {"TCP": 105, "ARP": 13, "DNS": 5},
   "attacks": [
     {"type": "arp_spoofing", "attacker": "de:ad:be:ef:00:66"},
-    {"type": "syn_scan", "attacker": "10.10.0.66"},
-    {"type": "sql_injection", "attacker": "10.10.0.66"}
+    {"type": "scan_syn", "attacker": "10.10.0.66"},
+    {"type": "injection_sql", "attacker": "10.10.0.66"}
   ],
   "flag": "ESGI{...}"
 }

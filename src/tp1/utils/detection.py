@@ -116,7 +116,7 @@ def find_sql_injection(packet: Packet, source_ip: str) -> Attack | None:
     request_line = request.splitlines()[0][:100]
     # !r échappe les caractères de contrôle envoyés par l'attaquant avant qu'ils arrivent au terminal
     return Attack(
-        attack_type="sql_injection",
+        attack_type="injection_sql",
         name="Injection SQL",
         protocol=get_protocol(packet),
         attacker_ip=source_ip,
@@ -233,7 +233,7 @@ class TrafficAnalyzer:
         """
         return [
             Attack(
-                attack_type="syn_scan",
+                attack_type="scan_syn",
                 name="Scan SYN",
                 protocol="TCP",
                 attacker_ip=ip,
