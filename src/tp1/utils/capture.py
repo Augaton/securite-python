@@ -1,7 +1,9 @@
-from scapy.all import conf, rdpcap, sniff
+from collections import Counter
+
+from scapy.all import Packet, conf, sniff
 
 from src.tp1.utils.config import logger
-from src.tp1.utils.detection import analyse_packets
+from src.tp1.utils.detection import TrafficAnalyzer
 from src.tp1.utils.lib import choose_interface, get_protocol
 
 # Durée de la capture par défaut, sans limite de paquets : le PCAP rejoué par le conteneur attaquant
@@ -15,7 +17,9 @@ class Capture:
         self.timeout = timeout
         self.interface = choose_interface() if pcap_file is None else ""
         self.listen_socket = None  # socket de capture, ouvert en root par open_socket()
-        self.packets = []
+        # chaque paquet est compté et analysé à son arrivée, puis oublié (voir add_packet)
+        self.protocol_counts = Counter()
+        self.analyzer = TrafficAnalyzer()
         self.protocols = {}  # {protocole: nombre de paquets}
         self.attacks = []  # tentatives d'attaque trouvées par analyse()
         self.flag = None  # marqueur ESGI{...} trouvé dans le trafic
@@ -34,8 +38,9 @@ class Capture:
         Capture network traffic from an interface (ou lit les paquets du fichier pcap)
         """
         if self.pcap_file is not None:
-            self.packets = rdpcap(self.pcap_file)
-            logger.info(f"{len(self.packets)} paquets lus dans {self.pcap_file}")
+            # le fichier est lu paquet par paquet, sans le charger en entier en mémoire
+            sniff(offline=self.pcap_file, prn=self.add_packet, store=False)
+            logger.info(f"{self.get_packet_count()} paquets lus dans {self.pcap_file}")
             return
         if self.listen_socket is None:
             self.open_socket()
@@ -43,12 +48,26 @@ class Capture:
             f"Capture sur {self.interface} pendant {self.timeout} secondes (Ctrl+C pour arrêter avant)"
         )
         try:
-            # sniff s'arrête proprement sur Ctrl+C et renvoie les paquets déjà capturés
-            self.packets = sniff(opened_socket=self.listen_socket, timeout=self.timeout)
+            # sniff s'arrête proprement sur Ctrl+C, les paquets déjà reçus restent comptés
+            sniff(opened_socket=self.listen_socket, timeout=self.timeout, prn=self.add_packet, store=False)
         finally:
             self.listen_socket.close()
             self.listen_socket = None
-        logger.info(f"{len(self.packets)} paquets capturés")
+        logger.info(f"{self.get_packet_count()} paquets capturés")
+
+    def add_packet(self, packet: Packet) -> None:
+        """
+        Traite un paquet dès qu'il arrive : il est compté et analysé puis oublié, la mémoire utilisée
+        ne grossit donc pas avec la durée de la capture (avant, tous les paquets étaient gardés)
+        """
+        self.protocol_counts[get_protocol(packet)] += 1
+        self.analyzer.add_packet(packet)
+
+    def get_packet_count(self) -> int:
+        """
+        Retourne le nombre de paquets capturés
+        """
+        return sum(self.protocol_counts.values())
 
     def get_source(self) -> str:
         """
@@ -67,14 +86,7 @@ class Capture:
         """
         Return all protocols captured with total packets number
         """
-        protocols = {}
-        for packet in self.packets:
-            protocol = get_protocol(packet)
-            if protocol in protocols:
-                protocols[protocol] += 1
-            else:
-                protocols[protocol] = 1
-        return protocols
+        return dict(self.protocol_counts)
 
     def analyse(self) -> None:
         """
@@ -90,14 +102,13 @@ class Capture:
         for protocol, count in self.protocols.items():
             logger.info(f"{protocol} : {count} paquets")
 
-        analyzer = analyse_packets(self.packets)
-        self.attacks = analyzer.get_attacks()
+        self.attacks = self.analyzer.get_attacks()
         for attack in self.attacks:
             logger.warning(f"Tentative d'attaque : {attack.describe()}")
         if not self.attacks:
             logger.info("Aucune attaque détectée, tout va bien")
 
-        self.flag = analyzer.flag
+        self.flag = self.analyzer.flag
         if self.flag is not None:
             logger.info(f"Marqueur trouvé : {self.flag}")
 
