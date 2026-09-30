@@ -8,6 +8,7 @@ from scapy.all import ARP, IP, TCP, Ether, IPv6, Packet, Raw
 from src.tp1.utils.lib import get_protocol
 
 UNKNOWN = "inconnue"
+ETHERTYPE_IPV4 = 0x0800  # valeur du champ "type de protocole" pour IPv4
 # Nombre de ports différents visés par des SYN à partir duquel on considère que c'est un scan
 SYN_SCAN_MIN_PORTS = 10
 HTTP_METHODS = (b"GET ", b"POST ", b"PUT ", b"PATCH ", b"DELETE ", b"HEAD ", b"OPTIONS ")
@@ -90,7 +91,9 @@ def is_ipv4_arp(arp: ARP) -> bool:
     bizarre envoyé par un attaquant suffisait à couper l'outil
     """
     # hwlen et plen valent None dans un paquet construit à la main (calculés à l'envoi)
-    return arp.hwtype == 1 and arp.ptype == 0x0800 and arp.hwlen in (None, 6) and arp.plen in (None, 4)
+    return (
+        arp.hwtype == 1 and arp.ptype == ETHERTYPE_IPV4 and arp.hwlen in (None, 6) and arp.plen in (None, 4)
+    )
 
 
 def get_http_request(packet: Packet) -> str | None:

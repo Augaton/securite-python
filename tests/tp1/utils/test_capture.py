@@ -40,7 +40,7 @@ def test_given_capture_when_capture_traffic_then_packets_are_saved(mock_conf):
 
     # When
     with patch(
-        "src.tp1.utils.capture.sniff", side_effect=lambda **options: feed(capture, packets)
+        "src.tp1.utils.capture.sniff", side_effect=lambda **_options: feed(capture, packets)
     ) as mock_sniff:
         capture.capture_traffic()
 
@@ -200,7 +200,8 @@ def test_given_marker_in_traffic_when_analyse_then_flag_is_kept():
 def test_given_pcap_file_when_capture_traffic_then_packets_are_read_without_asking_interface(tmp_path):
     # Given
     pcap_file = tmp_path / "attaque.pcap"
-    wrpcap(str(pcap_file), [Ether() / IP() / TCP(), Ether() / ARP()])
+    packets = [Ether() / IP() / TCP(), Ether() / ARP()]
+    wrpcap(str(pcap_file), packets)
     with patch("src.tp1.utils.capture.choose_interface") as mock_choose_interface:
         capture = Capture(pcap_file=str(pcap_file))
 
@@ -209,5 +210,5 @@ def test_given_pcap_file_when_capture_traffic_then_packets_are_read_without_aski
 
     # Then
     mock_choose_interface.assert_not_called()
-    assert capture.get_packet_count() == 2
+    assert capture.get_packet_count() == len(packets)
     assert capture.get_source() == f"fichier {pcap_file}"

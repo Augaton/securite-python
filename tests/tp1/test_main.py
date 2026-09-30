@@ -64,7 +64,7 @@ def test_given_wrong_option_when_parse_arguments_then_stop_with_error(arguments)
 @patch("src.tp1.main.drop_privileges")
 @patch("src.tp1.main.Capture")
 def test_when_main_then_root_is_dropped_between_socket_opening_and_capture(
-    mock_capture, mock_drop, mock_report
+    mock_capture, mock_drop, _mock_report
 ):
     # Given
     steps = []

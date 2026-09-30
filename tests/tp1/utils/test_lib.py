@@ -2,14 +2,28 @@ import logging
 from unittest.mock import MagicMock, call, patch
 
 import pytest
-from scapy.all import ARP, DNS, ICMP, IP, TCP, UDP, Ether, ICMPv6ND_NS, IPerror, IPv6, Padding, Raw, UDPerror
+from scapy.all import (
+    ARP,
+    DNS,
+    ICMP,
+    IP,
+    TCP,
+    UDP,
+    Ether,
+    ICMPv6ND_NS,
+    IPerror,
+    IPv6,
+    Padding,
+    Raw,
+    UDPerror,
+)
 
 from src.tp1.utils.lib import (
     choose_interface,
     drop_privileges,
-    give_log_files_to,
     format_share,
     get_protocol,
+    give_log_files_to,
     hello_world,
     parse_interface_choice,
 )
@@ -37,7 +51,8 @@ def keyboard():
 
 
 @patch("src.tp1.utils.lib.get_if_list", return_value=["lo", "eth0"])
-def test_given_interface_number_when_choose_interface_then_return_interface(mock_get_if_list, keyboard):
+@pytest.mark.usefixtures("keyboard")
+def test_given_interface_number_when_choose_interface_then_return_interface(_mock_get_if_list):
     # Given
     user_choice = "1"
 
@@ -50,7 +65,8 @@ def test_given_interface_number_when_choose_interface_then_return_interface(mock
 
 
 @patch("src.tp1.utils.lib.get_if_list", return_value=["lo", "eth0"])
-def test_given_wrong_then_valid_choice_when_choose_interface_then_ask_again(mock_get_if_list, keyboard):
+@pytest.mark.usefixtures("keyboard")
+def test_given_wrong_then_valid_choice_when_choose_interface_then_ask_again(_mock_get_if_list):
     # Given
     user_choices = ["abc", "1"]
 
@@ -60,7 +76,7 @@ def test_given_wrong_then_valid_choice_when_choose_interface_then_ask_again(mock
 
     # Then
     assert result == "eth0"
-    assert mock_input.call_count == 2
+    assert mock_input.call_count == len(user_choices)
 
 
 @pytest.mark.parametrize(
@@ -242,7 +258,7 @@ def test_given_log_file_when_give_log_files_to_then_chown_without_following_link
 
 @patch("src.tp1.utils.lib.conf", MagicMock(iface="wlan0"))
 @patch("src.tp1.utils.lib.get_if_list", return_value=["lo", "eth0"])
-def test_given_no_keyboard_when_choose_interface_then_default_interface_without_question(mock_get_if_list):
+def test_given_no_keyboard_when_choose_interface_then_default_interface_without_question(_mock_get_if_list):
     # Given
     with patch("src.tp1.utils.lib.sys.stdin") as mock_stdin, patch("builtins.input") as mock_input:
         mock_stdin.isatty.return_value = False
@@ -257,7 +273,8 @@ def test_given_no_keyboard_when_choose_interface_then_default_interface_without_
 
 @patch("src.tp1.utils.lib.conf", MagicMock(iface="wlan0"))
 @patch("src.tp1.utils.lib.get_if_list", return_value=["lo", "eth0"])
-def test_given_end_of_input_when_choose_interface_then_default_interface(mock_get_if_list, keyboard):
+@pytest.mark.usefixtures("keyboard")
+def test_given_end_of_input_when_choose_interface_then_default_interface(_mock_get_if_list):
     # When
     with patch("builtins.input", side_effect=EOFError):
         result = choose_interface()

@@ -130,7 +130,7 @@ class Capture:
             return f"Aucun paquet capturé ({self.get_source()})."
 
         # le dictionnaire est trié donc le premier protocole est le plus utilisé
-        most_used = list(self.protocols)[0]
+        most_used = next(iter(self.protocols))
         summary = (
             f"{total} paquets ont été analysés ({self.get_source()}). "
             f"Le protocole le plus utilisé est {most_used} avec {self.protocols[most_used]} paquets. "

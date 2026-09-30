@@ -1,5 +1,6 @@
 import json
-from datetime import datetime
+from datetime import datetime, timezone
+from pathlib import Path
 
 from fpdf import FPDF
 from fpdf.fonts import FontFace
@@ -72,7 +73,7 @@ class Report:
         pdf.cell(0, 10, self.title, new_x="LMARGIN", new_y="NEXT")
         pdf.set_font(FONT, size=10)
         pdf.set_text_color(*GREY_TEXT)
-        date = datetime.now().strftime("%d/%m/%Y à %H:%M")
+        date = datetime.now(timezone.utc).astimezone().strftime("%d/%m/%Y à %H:%M")
         subtitle = f"Généré le {date} - {self.capture.get_source()}"
         pdf.cell(0, 6, to_pdf_text(subtitle), new_x="LMARGIN", new_y="NEXT")
         pdf.set_text_color(0)
@@ -113,6 +114,29 @@ class Report:
             return "Légitime"
         return "Illégitime : " + ", ".join(attack_names)
 
+    @staticmethod
+    def add_attacks_table(pdf: FPDF, attacks: list) -> None:
+        """
+        Ajoute le tableau des attaques : une ligne par attaque avec l'IP et la MAC de l'attaquant
+        """
+        with pdf.table(
+            col_widths=(2.2, 1.8, 2.4, 3, 4.6),
+            text_align="LEFT",
+            borders_layout="HORIZONTAL_LINES",
+            headings_style=HEADINGS_STYLE,
+            line_height=6,
+        ) as table:
+            table.row(("Attaque", "Protocole", "IP attaquant", "MAC attaquant", "Détails"))
+            for attack in attacks:
+                cells = (
+                    attack.name,
+                    attack.protocol,
+                    attack.attacker_ip,
+                    attack.attacker_mac,
+                    attack.details,
+                )
+                table.row(tuple(to_pdf_text(cell) for cell in cells))
+
     def add_attacks(self, pdf: FPDF) -> None:
         """
         Ajoute chaque tentative d'attaque avec le protocole et les adresses réseau/physique de
@@ -122,23 +146,7 @@ class Report:
         if not attacks:
             pdf.multi_cell(0, 6, "Aucune attaque détectée : tout va bien.", new_x="LMARGIN", new_y="NEXT")
         else:
-            with pdf.table(
-                col_widths=(2.2, 1.8, 2.4, 3, 4.6),
-                text_align="LEFT",
-                borders_layout="HORIZONTAL_LINES",
-                headings_style=HEADINGS_STYLE,
-                line_height=6,
-            ) as table:
-                table.row(("Attaque", "Protocole", "IP attaquant", "MAC attaquant", "Détails"))
-                for attack in attacks:
-                    cells = (
-                        attack.name,
-                        attack.protocol,
-                        attack.attacker_ip,
-                        attack.attacker_mac,
-                        attack.details,
-                    )
-                    table.row(tuple(to_pdf_text(cell) for cell in cells))
+            self.add_attacks_table(pdf, attacks)
         if self.capture.flag is not None:
             pdf.ln(3)
             pdf.multi_cell(
@@ -201,7 +209,7 @@ class Report:
             ],
             "flag": self.capture.flag,
         }
-        with open(filename, "w", encoding="utf-8") as json_file:
+        with Path(filename).open("w", encoding="utf-8") as json_file:
             json.dump(result, json_file, indent=2, ensure_ascii=False)
         logger.info(f"Résultat pour le correcteur enregistré dans {filename}")
 

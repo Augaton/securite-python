@@ -184,7 +184,14 @@ def test_given_no_attack_when_concat_report_then_everything_is_fine():
 
 def test_given_non_latin1_text_from_attacker_when_concat_report_then_pdf_is_still_created():
     # Given
-    attack = Attack("sql_injection", "Injection SQL", "TCP", "10.0.0.66", "aa:bb:cc:dd:ee:ff", "requête ’😈’")
+    attack = Attack(
+        "sql_injection",
+        "Injection SQL",
+        "TCP",
+        "10.0.0.66",
+        "aa:bb:cc:dd:ee:ff",
+        "requête \u2019\U0001f608\u2019",
+    )
     report = Report(make_capture([attack]), "test.pdf", "Test summary")
 
     # When
@@ -251,7 +258,12 @@ def test_when_importing_the_tool_then_cairo_is_not_needed(tmp_path):
     # When
     # depuis un dossier temporaire : l'import crée app.log dans le dossier courant
     result = subprocess.run(
-        [sys.executable, "-c", code], cwd=tmp_path, env=environment, capture_output=True, text=True
+        [sys.executable, "-c", code],
+        cwd=tmp_path,
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
     )
 
     # Then

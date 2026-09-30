@@ -50,6 +50,14 @@ def parse_interface_choice(choice: str, interfaces: list[str]) -> str | None:
     return None
 
 
+def use_default_interface() -> str:
+    """
+    Retourne l'interface par défaut de scapy, quand personne ne peut en choisir une au clavier
+    """
+    logger.info(f"Pas de saisie possible, interface par défaut : {conf.iface}")
+    return str(conf.iface)
+
+
 def choose_interface() -> str:
     """
     Affiche les interfaces réseau et demande à l'utilisateur d'en choisir une,
@@ -62,14 +70,13 @@ def choose_interface() -> str:
     for index, interface in enumerate(interfaces):
         logger.info(f"{index} : {interface}")
 
+    if sys.stdin is None or not sys.stdin.isatty():
+        return use_default_interface()
     while True:
         try:
-            if sys.stdin is None or not sys.stdin.isatty():
-                raise EOFError
             choice = input(f"Numéro de l'interface à écouter (Entrée = {conf.iface}) : ")
         except EOFError:
-            logger.info(f"Pas de saisie possible, interface par défaut : {conf.iface}")
-            return str(conf.iface)
+            return use_default_interface()
         interface = parse_interface_choice(choice, interfaces)
         if interface is not None:
             return interface
@@ -143,6 +150,7 @@ def drop_privileges() -> None:
     os.setgid(user.pw_gid)
     os.setuid(user.pw_uid)
     if 0 in os.getresuid():
-        raise RuntimeError("Impossible d'abandonner les droits root")
+        message = "Impossible d'abandonner les droits root"
+        raise RuntimeError(message)
     os.environ["HOME"] = user.pw_dir
     logger.info(f"Droits root abandonnés, la suite tourne en tant que {user.pw_name}")

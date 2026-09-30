@@ -7,7 +7,6 @@ from src.tp1.utils.config import logger
 from src.tp1.utils.lib import drop_privileges
 from src.tp1.utils.report import Report
 
-
 # Extensions des fichiers de capture, pour reconnaître le fichier à analyser parmi les arguments
 PCAP_EXTENSIONS = (".pcap", ".pcapng", ".cap")
 
@@ -25,14 +24,9 @@ def find_pcap_file(candidates: list[str]) -> str | None:
     return next(iter(captures + files), None)
 
 
-def parse_arguments(arguments: list[str] | None = None) -> argparse.Namespace:
+def build_parser() -> argparse.ArgumentParser:
     """
-    Lit les options de la ligne de commande. Le fichier pcap se donne directement
-    (python src/tp1/main.py capture.pcap), avec --pcap ou avec -r. Une option inconnue est ignorée avec
-    un avertissement au lieu d'arrêter le programme (lancement par un script de correction par exemple)
-
-    :param arguments: options à lire, None pour celles passées au programme
-    :return: options (timeout et pcap)
+    Décrit les options de la ligne de commande (affichées par --help)
     """
     parser = argparse.ArgumentParser(description="TP1 : capture réseau, détection d'attaques et rapport")
     parser.add_argument("pcap_file", nargs="?", help="fichier pcap à analyser (comme --pcap)")
@@ -42,6 +36,19 @@ def parse_arguments(arguments: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--timeout", type=int, default=TIMEOUT, help=f"durée de la capture en secondes (défaut : {TIMEOUT})"
     )
+    return parser
+
+
+def parse_arguments(arguments: list[str] | None = None) -> argparse.Namespace:
+    """
+    Lit les options de la ligne de commande. Le fichier pcap se donne directement
+    (python src/tp1/main.py capture.pcap), avec --pcap ou avec -r. Une option inconnue est ignorée avec
+    un avertissement au lieu d'arrêter le programme (lancement par un script de correction par exemple)
+
+    :param arguments: options à lire, None pour celles passées au programme
+    :return: options (timeout et pcap)
+    """
+    parser = build_parser()
     options, unknown_arguments = parser.parse_known_args(arguments)
     explicit_pcap = options.pcap
     candidates = [argument for argument in (options.pcap, options.pcap_file, *unknown_arguments) if argument]
