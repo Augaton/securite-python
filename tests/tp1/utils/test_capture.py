@@ -1,5 +1,15 @@
 from unittest.mock import patch
+
+import pytest
+
 from src.tp1.utils.capture import Capture
+
+
+# Capture() demande l'interface avec input(), on la remplace pour les tests
+@pytest.fixture(autouse=True)
+def mock_choose_interface():
+    with patch("src.tp1.utils.capture.choose_interface", return_value=""):
+        yield
 
 
 def test_capture_init():
