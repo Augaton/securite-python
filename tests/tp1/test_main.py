@@ -1,3 +1,5 @@
+import sys
+from pathlib import Path
 from unittest.mock import patch
 
 from src.tp1.main import main
@@ -21,7 +23,7 @@ def test_when_main_then_report_is_saved(mock_capture, mock_report):
 
 @patch("src.tp1.main.Report")
 @patch("src.tp1.main.Capture")
-def test_given_no_root_when_main_then_no_report(mock_capture, mock_report):
+def test_given_no_root_when_main_then_no_report_and_sudo_command_is_given(mock_capture, mock_report, caplog):
     # Given
     mock_capture.return_value.capture_traffic.side_effect = PermissionError
 
@@ -31,3 +33,4 @@ def test_given_no_root_when_main_then_no_report(mock_capture, mock_report):
     # Then
     mock_capture.return_value.analyse.assert_not_called()
     mock_report.assert_not_called()
+    assert f"sudo {Path(sys.executable).parent / 'tp1'}" in caplog.text
