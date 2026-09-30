@@ -1,3 +1,5 @@
+import time
+
 import pytest
 from scapy.all import ARP, IP, TCP, Ether, Raw
 
@@ -262,3 +264,28 @@ def test_given_spoofing_before_real_reply_when_detect_attacks_then_mac_of_scanne
     # Then
     arp_attacks = [attack for attack in result if attack.attack_type == "arp_spoofing"]
     assert [attack.attacker_mac for attack in arp_attacks] == [ATTACKER_MAC]
+
+
+def test_given_marker_with_control_characters_when_find_flag_then_it_is_rejected():
+    # Given
+    # \x1b] ... \x07 : séquence d'échappement qui changerait le titre du terminal où s'affichent les logs
+    packets = [http(b"GET /?q=ESGI{\x1b]0;pwned\x07} HTTP/1.1\r\n\r\n")]
+
+    # When
+    result = find_flag(packets)
+
+    # Then
+    assert result is None
+
+
+def test_given_packet_full_of_marker_starts_when_find_flag_then_search_stays_fast():
+    # Given
+    packets = [http(b"ESGI{" * 12000)]
+
+    # When
+    start = time.perf_counter()
+    result = find_flag(packets)
+
+    # Then
+    assert result is None
+    assert time.perf_counter() - start < 1

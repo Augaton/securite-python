@@ -22,8 +22,10 @@ SQL_INJECTION_PATTERN = re.compile(
     r"|\binformation_schema\b",  # lecture de la structure de la base
     re.IGNORECASE,
 )
-# Marqueur unique glissé par le conteneur attaquant dans son injection SQL
-FLAG_PATTERN = re.compile(r"ESGI\{[^}\s]*\}")
+# Marqueur unique glissé par le conteneur attaquant dans son injection SQL. Seulement des caractères
+# imprimables (un faux marqueur avec des séquences d'échappement piloterait le terminal des logs) et
+# 100 au plus (sans limite, un paquet rempli de "ESGI{" bloquait la recherche plusieurs secondes)
+FLAG_PATTERN = re.compile(r"ESGI\{[\x21-\x7c\x7e]{1,100}\}")
 
 
 @dataclass(frozen=True)
