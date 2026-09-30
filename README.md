@@ -35,7 +35,8 @@ sudo "$(poetry env info --path)/bin/tp1"
 
 Ensuite :
 
-1. la liste des interfaces s'affiche, on tape le numéro de celle qu'on veut écouter
+1. la liste des interfaces s'affiche, on tape le numéro (ou le nom) de celle qu'on veut écouter, ou Entrée
+   pour prendre celle par défaut (si le choix est pas bon ça redemande)
 2. ça capture 100 paquets ou pendant 30 secondes max (modifiable dans `src/tp1/utils/capture.py`)
 3. le nombre de paquets par protocole s'affiche dans les logs
 4. les fichiers sont créés dans le dossier où on lance le programme :

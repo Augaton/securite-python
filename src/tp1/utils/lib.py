@@ -15,9 +15,28 @@ def hello_world() -> str:
     return "hello world"
 
 
+def parse_interface_choice(choice: str, interfaces: list[str]) -> str | None:
+    """
+    Convertit la saisie de l'utilisateur en nom d'interface
+
+    :param choice: numéro ou nom de l'interface, vide pour garder l'interface par défaut de scapy
+    :param interfaces: interfaces disponibles
+    :return: nom de l'interface, None si la saisie ne correspond à aucune interface
+    """
+    choice = choice.strip()
+    if choice == "":
+        return str(conf.iface)
+    if choice in interfaces:
+        return choice
+    if choice.isdigit() and int(choice) < len(interfaces):
+        return interfaces[int(choice)]
+    return None
+
+
 def choose_interface() -> str:
     """
-    Affiche les interfaces réseau et demande à l'utilisateur d'en choisir une
+    Affiche les interfaces réseau et demande à l'utilisateur d'en choisir une,
+    jusqu'à ce que le choix soit valide (une faute de frappe ne lance pas la capture ailleurs)
 
     :return: network interface
     """
@@ -25,13 +44,12 @@ def choose_interface() -> str:
     for index, interface in enumerate(interfaces):
         logger.info(f"{index} : {interface}")
 
-    choice = input("Numéro de l'interface à écouter : ")
-    if choice.isdigit() and int(choice) < len(interfaces):
-        return interfaces[int(choice)]
-
-    # si le choix est pas bon on prend l'interface par défaut de scapy
-    logger.warning(f"Choix invalide, on prend l'interface par défaut : {conf.iface}")
-    return str(conf.iface)
+    while True:
+        choice = input(f"Numéro de l'interface à écouter (Entrée = {conf.iface}) : ")
+        interface = parse_interface_choice(choice, interfaces)
+        if interface is not None:
+            return interface
+        logger.warning(f"Choix invalide : {choice!r}")
 
 
 def get_protocol(packet: Packet) -> str:
