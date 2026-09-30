@@ -131,7 +131,7 @@ def make_capture(attacks: list, flag: str | None = None) -> MagicMock:
     Capture analysée de test : 3 paquets ARP et 1 TCP
     """
     capture = MagicMock()
-    capture.interface = "eth0"
+    capture.get_source.return_value = "interface eth0"
     capture.protocols = {"ARP": 3, "TCP": 1}
     capture.attacks = attacks
     capture.flag = flag

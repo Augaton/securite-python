@@ -1,7 +1,7 @@
 from unittest.mock import patch
 
 import pytest
-from scapy.all import ARP, DNS, IP, TCP, UDP, Ether, Raw
+from scapy.all import ARP, DNS, IP, TCP, UDP, Ether, Raw, wrpcap
 
 from src.tp1.utils.capture import Capture
 
@@ -34,7 +34,7 @@ def test_given_capture_when_capture_traffic_then_packets_are_saved():
         capture.capture_traffic()
 
     # Then
-    mock_sniff.assert_called_once_with(iface="eth0", count=100, timeout=30)
+    mock_sniff.assert_called_once_with(iface="eth0", timeout=60)
     assert capture.packets == packets
 
 
@@ -108,7 +108,7 @@ def test_given_no_packet_when_gen_summary_then_say_no_packet():
     result = capture._gen_summary()
 
     # Then
-    assert result == "Aucun paquet capturé sur eth0."
+    assert result == "Aucun paquet capturé (interface eth0)."
 
 
 def test_given_arp_spoofing_when_analyse_then_attack_is_noted_in_summary():
@@ -150,3 +150,19 @@ def test_given_marker_in_traffic_when_analyse_then_flag_is_kept():
 
     # Then
     assert capture.flag == "ESGI{abc123}"
+
+
+def test_given_pcap_file_when_capture_traffic_then_packets_are_read_without_asking_interface(tmp_path):
+    # Given
+    pcap_file = tmp_path / "attaque.pcap"
+    wrpcap(str(pcap_file), [Ether() / IP() / TCP(), Ether() / ARP()])
+    with patch("src.tp1.utils.capture.choose_interface") as mock_choose_interface:
+        capture = Capture(pcap_file=str(pcap_file))
+
+    # When
+    capture.capture_traffic()
+
+    # Then
+    mock_choose_interface.assert_not_called()
+    assert len(capture.packets) == 2
+    assert capture.get_source() == f"fichier {pcap_file}"

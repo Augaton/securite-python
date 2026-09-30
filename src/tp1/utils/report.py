@@ -66,7 +66,7 @@ class Report:
         pdf.set_font(FONT, size=10)
         pdf.set_text_color(*GREY_TEXT)
         date = datetime.now().strftime("%d/%m/%Y à %H:%M")
-        subtitle = f"Généré le {date} - interface {self.capture.interface}"
+        subtitle = f"Généré le {date} - {self.capture.get_source()}"
         pdf.cell(0, 6, to_pdf_text(subtitle), new_x="LMARGIN", new_y="NEXT")
         pdf.set_text_color(0)
         pdf.ln(6)

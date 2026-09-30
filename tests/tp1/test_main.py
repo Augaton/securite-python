@@ -2,7 +2,9 @@ import sys
 from pathlib import Path
 from unittest.mock import patch
 
-from src.tp1.main import main
+import pytest
+
+from src.tp1.main import main, parse_arguments
 
 
 @patch("src.tp1.main.Report")
@@ -12,9 +14,10 @@ def test_when_main_then_report_is_saved(mock_capture, mock_report):
     mock_capture.return_value.get_summary.return_value = "Test summary"
 
     # When
-    main()
+    main([])
 
     # Then
+    mock_capture.assert_called_once_with(None, 60)
     mock_capture.return_value.capture_traffic.assert_called_once()
     mock_capture.return_value.analyse.assert_called_once()
     mock_report.assert_called_once_with(mock_capture.return_value, "report.pdf", "Test summary")
@@ -29,9 +32,28 @@ def test_given_no_root_when_main_then_no_report_and_sudo_command_is_given(mock_c
     mock_capture.return_value.capture_traffic.side_effect = PermissionError
 
     # When
-    main()
+    main([])
 
     # Then
     mock_capture.return_value.analyse.assert_not_called()
     mock_report.assert_not_called()
     assert f"sudo {Path(sys.executable).parent / 'tp1'}" in caplog.text
+
+
+def test_given_pcap_and_timeout_when_parse_arguments_then_options_are_read(tmp_path):
+    # Given
+    pcap_file = tmp_path / "attaque.pcap"
+    pcap_file.write_bytes(b"")
+
+    # When
+    options = parse_arguments(["--pcap", str(pcap_file), "--timeout", "120"])
+
+    # Then
+    assert (options.pcap, options.timeout) == (str(pcap_file), 120)
+
+
+@pytest.mark.parametrize("arguments", [["--pcap", "fichier_absent.pcap"], ["--timeout", "0"]])
+def test_given_wrong_option_when_parse_arguments_then_stop_with_error(arguments):
+    # When / Then
+    with pytest.raises(SystemExit):
+        parse_arguments(arguments)
