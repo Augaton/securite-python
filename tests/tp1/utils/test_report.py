@@ -1,4 +1,7 @@
 import json
+import subprocess
+import sys
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from src.tp1.utils.detection import Attack
@@ -68,11 +71,11 @@ def test_generate_graph():
     report = Report(MagicMock(), "test.pdf", "Test summary")
 
     # When
-    with patch("src.tp1.utils.report.save_graph", return_value="graph.png"):
+    with patch("src.tp1.utils.report.save_graph", return_value="graph.svg"):
         report.generate("graph")
 
     # Then
-    assert report.graph == "graph.png"
+    assert report.graph == "graph.svg"
 
 
 def test_generate_array():
@@ -222,3 +225,30 @@ def test_given_nothing_found_when_save_json_then_no_attack_and_no_flag(tmp_path)
     result = json.loads(filename.read_text())
     assert result["attacks"] == []
     assert result["flag"] is None
+
+
+def test_given_graph_when_concat_report_then_pdf_has_a_bar_per_protocol():
+    # Given
+    report = Report(make_capture([]), "test.pdf", "Test summary")
+    report.graph = "graph.svg"
+
+    # When
+    content = get_pdf_text(report)
+
+    # Then
+    assert b"Graphique : nombre de paquets par protocole" in content
+    for text in (b"ARP  ", b"  3", b"TCP  ", b"  1"):
+        assert text in content
+
+
+def test_when_importing_the_tool_then_cairo_is_not_needed():
+    # Given
+    # le bac à sable de correction n'a pas la bibliothèque système cairo : on interdit son import
+    code = "import sys; sys.modules['cairosvg'] = sys.modules['cairocffi'] = None; import src.tp1.main"
+    repository_root = Path(__file__).resolve().parents[3]
+
+    # When
+    result = subprocess.run([sys.executable, "-c", code], cwd=repository_root, capture_output=True, text=True)
+
+    # Then
+    assert result.returncode == 0, result.stderr

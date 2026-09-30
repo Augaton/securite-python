@@ -44,7 +44,7 @@ def test_given_no_protocol_when_create_graph_then_say_no_packet():
     assert "Aucun paquet capturé" in svg
 
 
-def test_given_protocols_when_save_graph_then_svg_and_png_are_created(tmp_path, monkeypatch):
+def test_given_protocols_when_save_graph_then_only_svg_is_created(tmp_path, monkeypatch):
     # Given
     protocols = {"TCP": 3, "DNS": 1}
     monkeypatch.chdir(tmp_path)
@@ -53,6 +53,6 @@ def test_given_protocols_when_save_graph_then_svg_and_png_are_created(tmp_path, 
     result = save_graph(protocols)
 
     # Then
-    assert result == "graph.png"
+    assert result == "graph.svg"
     assert (tmp_path / "graph.svg").exists()
-    assert (tmp_path / "graph.png").exists()
+    assert not (tmp_path / "graph.png").exists()

@@ -1,11 +1,9 @@
-import cairosvg
 import pygal
 from pygal.style import Style
 
 from src.tp1.utils.config import logger
 
 GRAPH_SVG = "graph.svg"
-GRAPH_PNG = "graph.png"
 
 # Une seule couleur pour toutes les barres, grille discrète en trait plein (pointillés par défaut)
 GRAPH_STYLE = Style(
@@ -58,15 +56,11 @@ def create_graph(protocols: dict) -> pygal.HorizontalBar:
 
 def save_graph(protocols: dict) -> str:
     """
-    Enregistre le graphique en SVG (à ouvrir dans le navigateur) et en PNG (pour le PDF,
-    fpdf n'affiche pas bien le SVG de pygal)
+    Enregistre le graphique pygal en SVG, à ouvrir dans le navigateur (l'interface graphique)
 
     :param protocols: {protocole: nombre de paquets}
-    :return: chemin de l'image PNG
+    :return: chemin du fichier SVG
     """
-    graph = create_graph(protocols)
-    graph.render_to_file(GRAPH_SVG)
-    # scale=2 : image deux fois plus grande pour qu'elle reste nette dans le PDF
-    cairosvg.svg2png(bytestring=graph.render(), write_to=GRAPH_PNG, scale=2)
+    create_graph(protocols).render_to_file(GRAPH_SVG)
     logger.info(f"Graphique enregistré dans {GRAPH_SVG}")
-    return GRAPH_PNG
+    return GRAPH_SVG

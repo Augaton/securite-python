@@ -8,8 +8,9 @@ Les TP de sécu python (ESGI 4A), fait à partir du template du prof.
 
 ## Installation
 
-Il faut python 3.11 minimum, poetry, et cairo (sert à transformer le graphique en png pour le pdf,
-normalement il est deja installé sur linux sinon `sudo dnf install cairo` ou `sudo apt install libcairo2`).
+Il faut python 3.11 minimum et poetry. Rien d'autre à installer sur la machine : le graphique du pdf
+est dessiné directement avec fpdf (avant on passait par cairo, qui manquait dans le bac à sable de
+correction et faisait planter le programme au démarrage).
 
 ```bash
 git clone https://github.com/Augaton/securite-python.git
@@ -51,7 +52,6 @@ Ensuite :
    - `report.pdf` : le rapport
    - `report.json` : le résultat pour le correcteur
    - `graph.svg` : le graphique, à ouvrir dans un navigateur
-   - `graph.png` : le graphique en image (celui qui est dans le pdf)
 
 Les logs sont aussi écrits dans `app.log`.
 
@@ -127,5 +127,4 @@ Pas besoin d'être root pour les tests, la capture est simulée.
 ## Problèmes
 
 - si des fichiers ont été créés par root avec une ancienne version (`app.log`, `report.pdf`...) on peut
-  plus les modifier sans sudo, il faut faire `sudo chown $USER app.log report.pdf graph.svg graph.png`
-- erreur `no library called "cairo-2" was found` -> installer cairo (voir installation)
+  plus les modifier sans sudo, il faut faire `sudo chown $USER app.log report.pdf graph.svg`

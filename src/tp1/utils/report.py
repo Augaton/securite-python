@@ -13,6 +13,13 @@ FONT = "Helvetica"
 MARGIN_MM = 20
 GREY_TEXT = (82, 81, 78)
 HEADINGS_STYLE = FontFace(emphasis="BOLD", fill_color=(240, 239, 236))
+# Histogramme du PDF : une ligne par protocole (nom, barre, nombre de paquets)
+BAR_COLOR = (42, 120, 214)  # le même bleu que le graphique pygal
+LABEL_WIDTH_MM = 45
+VALUE_WIDTH_MM = 22
+BAR_HEIGHT_MM = 5
+BAR_GAP_MM = 1.5
+MAX_BARS = 25  # au-delà le graphique ne tient plus sur une page (le tableau garde tout)
 
 
 def to_pdf_text(text: str) -> str:
@@ -140,13 +147,33 @@ class Report:
 
     def add_graph(self, pdf: FPDF) -> None:
         """
-        Ajoute le graphique, sur la page suivante avec son titre s'il ne tient pas en bas de page
+        Ajoute l'histogramme du nombre de paquets par protocole, dessiné directement avec fpdf : passer
+        le SVG de pygal en image demandait la bibliothèque système cairo, absente du bac à sable de
+        correction (le programme plantait dès le démarrage). Il passe à la page suivante avec son
+        titre s'il ne tient pas en bas de page
         """
-        if self.graph == "":
+        protocols = list(self.capture.protocols.items())[:MAX_BARS]
+        if self.graph == "" or not protocols:
             return
         with pdf.unbreakable() as section:
-            self.add_section(section, "Graphique")
-            section.image(self.graph, w=pdf.epw)
+            self.add_section(section, "Graphique : nombre de paquets par protocole")
+            self.draw_bars(section, protocols)
+
+    @staticmethod
+    def draw_bars(pdf: FPDF, protocols: list[tuple[str, int]]) -> None:
+        """
+        Une barre horizontale par protocole, proportionnelle à son nombre de paquets. Les barres sont
+        des cellules remplies de couleur : elles se placent et suivent les sauts de page comme du texte
+        """
+        max_count = max(count for _, count in protocols)
+        bars_width = pdf.epw - LABEL_WIDTH_MM - VALUE_WIDTH_MM
+        pdf.set_font(FONT, size=10)
+        pdf.set_fill_color(*BAR_COLOR)
+        for protocol, count in protocols:
+            pdf.cell(LABEL_WIDTH_MM, BAR_HEIGHT_MM, f"{to_pdf_text(protocol)}  ", align="R")
+            pdf.cell(max(bars_width * count / max_count, 0.5), BAR_HEIGHT_MM, "", fill=True)
+            pdf.cell(VALUE_WIDTH_MM, BAR_HEIGHT_MM, f"  {count}", new_x="LMARGIN", new_y="NEXT")
+            pdf.ln(BAR_GAP_MM)
 
     def save(self, filename: str) -> None:
         """
