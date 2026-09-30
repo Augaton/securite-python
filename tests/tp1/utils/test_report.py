@@ -96,3 +96,19 @@ def test_generate_invalid_param():
     # Then
     assert report.graph == ""
     assert report.array == []
+
+
+def test_when_concat_report_then_array_has_share_of_each_protocol_and_total():
+    # Given
+    report = Report(MagicMock(), "test.pdf", "Test summary")
+    report.array = [("TCP", 3), ("DNS", 1)]
+
+    # When
+    pdf = report.concat_report()
+
+    # Then
+    # sans compression le texte du PDF est lisible directement dans le fichier
+    pdf.set_compression(False)
+    content = bytes(pdf.output())
+    for text in (b"Part du trafic", b"75.0 %", b"25.0 %", b"Total", b"100.0 %"):
+        assert text in content

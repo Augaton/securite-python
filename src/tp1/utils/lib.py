@@ -64,3 +64,15 @@ def get_protocol(packet: Packet) -> str:
     if not protocol_layers:
         return "Autre"
     return protocol_layers[-1].__name__
+
+
+def format_share(count: int, total: int) -> str:
+    """
+    Retourne la part d'un nombre de paquets dans le total, en pourcentage
+
+    :param count: nombre de paquets
+    :param total: nombre total de paquets
+    :return: pourcentage, ex : "25.0 %"
+    """
+    share = count / total * 100 if total else 0.0
+    return f"{share:.1f} %"

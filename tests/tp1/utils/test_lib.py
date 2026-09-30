@@ -3,7 +3,13 @@ from unittest.mock import MagicMock, patch
 import pytest
 from scapy.all import ARP, DNS, IP, TCP, UDP, Ether, ICMPv6ND_NS, IPv6, Padding, Raw
 
-from src.tp1.utils.lib import choose_interface, get_protocol, hello_world, parse_interface_choice
+from src.tp1.utils.lib import (
+    choose_interface,
+    format_share,
+    get_protocol,
+    hello_world,
+    parse_interface_choice,
+)
 
 
 def test_when_hello_world_then_return_hello_world():
@@ -118,3 +124,14 @@ def test_given_raw_data_only_when_get_protocol_then_return_autre():
 
     # Then
     assert result == "Autre"
+
+
+@pytest.mark.parametrize(
+    "count, total, expected_share", [(1, 4, "25.0 %"), (3, 3, "100.0 %"), (0, 0, "0.0 %")]
+)
+def test_when_format_share_then_return_percentage(count, total, expected_share):
+    # When
+    result = format_share(count, total)
+
+    # Then
+    assert result == expected_share
