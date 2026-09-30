@@ -194,13 +194,14 @@ def test_given_not_root_when_drop_privileges_then_nothing_changes(mock_os):
     mock_os.setuid.assert_not_called()
 
 
-def test_given_root_without_sudo_when_drop_privileges_then_nothing_changes(mock_os):
+def test_given_root_without_sudo_when_drop_privileges_then_warn_that_everything_runs_as_root(mock_os, caplog):
     # When
     with patch("src.tp1.utils.lib.get_sudo_user", return_value=None):
         drop_privileges()
 
     # Then
     mock_os.setuid.assert_not_called()
+    assert "Lancé en root sans sudo" in caplog.text
 
 
 def test_given_root_still_there_after_setuid_when_drop_privileges_then_stop(mock_os):

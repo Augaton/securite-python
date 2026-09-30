@@ -123,8 +123,11 @@ def drop_privileges() -> None:
     Seule l'ouverture du socket de capture a besoin de root : l'analyse des paquets reçus (qui peuvent
     venir d'un attaquant) et l'écriture des fichiers se font ensuite sans ces droits.
     """
+    if os.geteuid() != 0:
+        return
     user = get_sudo_user()
-    if os.geteuid() != 0 or user is None:
+    if user is None:
+        logger.warning("Lancé en root sans sudo : pas d'utilisateur vers qui repasser, tout tourne en root")
         return
     give_log_files_to(user)
     # les groupes et le gid d'abord : une fois l'uid changé, on n'a plus le droit de les modifier
