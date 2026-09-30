@@ -1,4 +1,6 @@
-from unittest.mock import patch, mock_open, MagicMock
+from unittest.mock import MagicMock, patch
+
+from src.tp1.utils.graph import save_graph
 from src.tp1.utils.report import Report
 
 
@@ -14,40 +16,49 @@ def test_report_init():
     # Then
     assert report.capture == capture
     assert report.filename == filename
-    assert report.title == "TITRE DU RAPPORT"
+    assert report.title == "Rapport de capture réseau"
     assert report.summary == summary
-    assert report.array == ""
+    assert report.array == []
     assert report.graph == ""
 
 
 def test_concat_report():
     # Given
     report = Report(MagicMock(), "test.pdf", "Test summary")
-    report.title = "Test Title"
-    report.array = "Test Array"
-    report.graph = "Test Graph"
+    report.array = [("TCP", 3), ("DNS", 1)]
 
     # When
     result = report.concat_report()
 
     # Then
-    assert result == "Test TitleTest summaryTest ArrayTest Graph"
+    assert result.page_no() == 1
 
 
-def test_save():
+def test_save(tmp_path):
     # Given
     report = Report(MagicMock(), "test.pdf", "Test summary")
-    report.title = "Test Title"
+    report.array = [("TCP", 3)]
+    filename = tmp_path / "test.pdf"
 
-    # When/Then
-    with patch("builtins.open", mock_open()) as mock_file:
-        report.save("test.pdf")
+    # When
+    report.save(str(filename))
 
-        # Verify file was opened with correct name
-        mock_file.assert_called_once_with("test.pdf", "w")
+    # Then
+    assert filename.read_bytes().startswith(b"%PDF")
 
-        # Verify write was called with the concatenated content
-        mock_file().write.assert_called_once_with("Test TitleTest summary")
+
+def test_given_graph_when_save_then_pdf_is_created(tmp_path, monkeypatch):
+    # Given
+    monkeypatch.chdir(tmp_path)
+    report = Report(MagicMock(), "test.pdf", "Test summary")
+    report.array = [("TCP", 3), ("DNS", 1)]
+    report.graph = save_graph({"TCP": 3, "DNS": 1})
+
+    # When
+    report.save("test.pdf")
+
+    # Then
+    assert (tmp_path / "test.pdf").read_bytes().startswith(b"%PDF")
 
 
 def test_generate_graph():
@@ -55,21 +66,24 @@ def test_generate_graph():
     report = Report(MagicMock(), "test.pdf", "Test summary")
 
     # When
-    report.generate("graph")
+    with patch("src.tp1.utils.report.save_graph", return_value="graph.png"):
+        report.generate("graph")
 
     # Then
-    assert report.graph == ""  # Currently returns empty string
+    assert report.graph == "graph.png"
 
 
 def test_generate_array():
     # Given
-    report = Report(MagicMock(), "test.pdf", "Test summary")
+    capture = MagicMock()
+    capture.protocols = {"TCP": 3, "DNS": 1}
+    report = Report(capture, "test.pdf", "Test summary")
 
     # When
     report.generate("array")
 
     # Then
-    assert report.array == ""  # Currently returns empty string
+    assert report.array == [("TCP", 3), ("DNS", 1)]
 
 
 def test_generate_invalid_param():
@@ -81,4 +95,4 @@ def test_generate_invalid_param():
 
     # Then
     assert report.graph == ""
-    assert report.array == ""
+    assert report.array == []
