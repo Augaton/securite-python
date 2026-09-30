@@ -88,7 +88,7 @@ def test_get_all_protocols():
     result = capture.get_all_protocols()
 
     # Then
-    assert result == {"TCP": 2, "DNS": 1}
+    assert result == {"TCP": 2, "UDP": 1}
 
 
 def test_sort_network_protocols():

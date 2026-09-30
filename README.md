@@ -98,9 +98,9 @@ scan et l'injection :
 
 ### Comment ça marche
 
-Pour trouver le protocole d'un paquet on prend sa couche la plus "haute" en ignorant les données brutes
-(Raw) et le padding : `Ether / IP / UDP / DNS` ça donne DNS, `Ether / IP / TCP / Raw` ça donne TCP.
-Comme ça on voit tous les types de paquets (IPv6, NBNS, LLMNR...) et pas juste une liste fixe.
+Les paquets sont comptés par protocole de transport (ARP, TCP, UDP, ICMP, ICMPv6) comme dans l'exemple
+de la consigne (`{"TCP": 128, "ARP": 12}`) : un paquet DNS compte en UDP, une requête HTTP en TCP. Avant
+on prenait la couche la plus "haute" (DNS, NBNS...) mais le correcteur compte comme ça.
 
 Côté sécu :
 
