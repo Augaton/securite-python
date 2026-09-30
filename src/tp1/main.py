@@ -1,4 +1,5 @@
 import argparse
+import os
 import sys
 from pathlib import Path
 
@@ -31,6 +32,9 @@ def parse_arguments(arguments: list[str] | None = None) -> argparse.Namespace:
 
 
 def main(arguments: list[str] | None = None):
+    # les rapports contiennent le marqueur unique du binôme et les adresses du réseau : ils ne sont
+    # lisibles que par leur propriétaire (droits 600), pas par les autres comptes de la machine
+    os.umask(0o077)
     logger.info("Starting TP1")
     options = parse_arguments(arguments)
 
