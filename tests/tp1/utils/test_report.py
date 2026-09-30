@@ -1,5 +1,6 @@
 from unittest.mock import MagicMock, patch
 
+from src.tp1.utils.detection import Attack
 from src.tp1.utils.graph import save_graph
 from src.tp1.utils.report import Report
 
@@ -112,3 +113,77 @@ def test_when_concat_report_then_array_has_share_of_each_protocol_and_total():
     content = bytes(pdf.output())
     for text in (b"Part du trafic", b"75.0 %", b"25.0 %", b"Total", b"100.0 %"):
         assert text in content
+
+
+ARP_ATTACK = Attack(
+    attack_type="arp_spoofing",
+    name="ARP spoofing",
+    protocol="ARP",
+    attacker_ip="192.168.1.66",
+    attacker_mac="aa:bb:cc:dd:ee:ff",
+    details="se fait passer pour 192.168.1.1",
+)
+
+
+def make_capture(attacks: list, flag: str | None = None) -> MagicMock:
+    """
+    Capture analysée de test : 3 paquets ARP et 1 TCP
+    """
+    capture = MagicMock()
+    capture.interface = "eth0"
+    capture.protocols = {"ARP": 3, "TCP": 1}
+    capture.attacks = attacks
+    capture.flag = flag
+    return capture
+
+
+def get_pdf_text(report: Report) -> bytes:
+    """
+    Contenu du PDF sans compression, pour pouvoir y chercher du texte (encodé en latin-1)
+    """
+    report.generate("array")
+    pdf = report.concat_report()
+    pdf.set_compression(False)
+    return bytes(pdf.output())
+
+
+def test_given_attack_when_concat_report_then_traffic_is_illegitimate_and_attacker_is_shown():
+    # Given
+    report = Report(make_capture([ARP_ATTACK], flag="ESGI{abc}"), "test.pdf", "Test summary")
+
+    # When
+    content = get_pdf_text(report)
+
+    # Then
+    for text in (
+        "Illégitime : ARP spoofing",
+        "Légitime",
+        "aa:bb:cc:dd:ee:ff",
+        "192.168.1.66",
+        "Marqueur trouvé : ESGI{abc}",
+    ):
+        assert text.encode("latin-1") in content
+
+
+def test_given_no_attack_when_concat_report_then_everything_is_fine():
+    # Given
+    report = Report(make_capture([]), "test.pdf", "Test summary")
+
+    # When
+    content = get_pdf_text(report)
+
+    # Then
+    assert "Aucune attaque détectée : tout va bien.".encode("latin-1") in content
+    assert "Illégitime".encode("latin-1") not in content
+
+
+def test_given_non_latin1_text_from_attacker_when_concat_report_then_pdf_is_still_created():
+    # Given
+    attack = Attack("sql_injection", "Injection SQL", "TCP", "10.0.0.66", "aa:bb:cc:dd:ee:ff", "requête ’😈’")
+    report = Report(make_capture([attack]), "test.pdf", "Test summary")
+
+    # When
+    content = get_pdf_text(report)
+
+    # Then
+    assert "requête ??".encode("latin-1") in content
