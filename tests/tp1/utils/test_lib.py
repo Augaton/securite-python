@@ -1,5 +1,4 @@
 import logging
-import os
 from unittest.mock import MagicMock, call, patch
 
 import pytest
@@ -286,13 +285,14 @@ def test_given_end_of_input_when_choose_interface_then_default_interface(_mock_g
 
 def test_given_program_launched_with_sudo_when_get_sudo_user_then_return_its_account(monkeypatch):
     # Given
-    monkeypatch.setenv("SUDO_UID", str(os.getuid()))
+    # uid 0 : root existe sur toutes les machines, contrairement à l'uid de celui qui lance les tests
+    monkeypatch.setenv("SUDO_UID", "0")
 
     # When
     result = get_sudo_user()
 
     # Then
-    assert result.pw_uid == os.getuid()
+    assert result.pw_uid == 0
 
 
 def test_given_no_sudo_when_get_sudo_user_then_return_none(monkeypatch):

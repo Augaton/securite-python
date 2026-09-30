@@ -10,6 +10,14 @@ from scapy.all import IP, TCP, Ether, Raw, wrpcap
 from src.tp1.main import get_output_paths, main, parse_arguments
 
 
+@pytest.fixture(autouse=True)
+def no_grader_directory(monkeypatch, tmp_path):
+    """
+    Le dossier /out existe dans le bac à sable de correction : sans ça les tests n'y seraient pas les mêmes
+    """
+    monkeypatch.setattr("src.tp1.main.GRADER_OUTPUT_DIRECTORY", tmp_path / "absent")
+
+
 @patch("src.tp1.main.Report")
 @patch("src.tp1.main.Capture")
 def test_when_main_then_report_is_saved(mock_capture, mock_report):
