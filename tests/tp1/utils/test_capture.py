@@ -109,3 +109,32 @@ def test_given_no_packet_when_gen_summary_then_say_no_packet():
 
     # Then
     assert result == "Aucun paquet capturé sur eth0."
+
+
+def test_given_arp_spoofing_when_analyse_then_attack_is_noted_in_summary():
+    # Given
+    capture = Capture()
+    capture.packets = [
+        Ether(src="aa:bb:cc:dd:ee:ff") / ARP(op=2, psrc=ip, hwsrc="aa:bb:cc:dd:ee:ff")
+        for ip in ("192.168.1.1", "192.168.1.10")
+    ]
+
+    # When
+    capture.analyse()
+
+    # Then
+    assert [attack.attack_type for attack in capture.attacks] == ["arp_spoofing"]
+    assert "1 tentative(s) d'attaque détectée(s) : ARP spoofing." in capture.summary
+
+
+def test_given_legit_traffic_when_analyse_then_summary_says_everything_is_fine():
+    # Given
+    capture = Capture()
+    capture.packets = [Ether() / IP() / TCP()]
+
+    # When
+    capture.analyse()
+
+    # Then
+    assert capture.attacks == []
+    assert capture.summary.endswith("Aucune attaque détectée, tout va bien.")

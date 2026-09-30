@@ -1,6 +1,7 @@
 from scapy.all import sniff
 
 from src.tp1.utils.config import logger
+from src.tp1.utils.detection import detect_attacks
 from src.tp1.utils.lib import choose_interface, get_protocol
 
 # La capture s'arrête au bout de 100 paquets ou de 30 secondes
@@ -13,6 +14,7 @@ class Capture:
         self.interface = choose_interface()
         self.packets = []
         self.protocols = {}  # {protocole: nombre de paquets}
+        self.attacks = []  # tentatives d'attaque trouvées par analyse()
         self.summary = ""
 
     def capture_traffic(self) -> None:
@@ -45,11 +47,23 @@ class Capture:
 
     def analyse(self) -> None:
         """
-        Compte les paquets de chaque protocole et génère le résumé
+        Analyse all captured data and return statement
+        Si un trafic est illégitime (exemple : Injection SQL, ARP Spoofing, etc)
+        a. Noter la tentative d'attaque.
+        b. Relever le protocole ainsi que l'adresse réseau/physique de l'attaquant.
+        c. (FACULTATIF) Opérer le blocage de la machine attaquante (pas fait : une fausse alerte
+           couperait une machine légitime, la passerelle par exemple)
+        Sinon afficher que tout va bien
         """
         self.protocols = self.sort_network_protocols()
         for protocol, count in self.protocols.items():
             logger.info(f"{protocol} : {count} paquets")
+
+        self.attacks = detect_attacks(self.packets)
+        for attack in self.attacks:
+            logger.warning(f"Tentative d'attaque : {attack.describe()}")
+        if not self.attacks:
+            logger.info("Aucune attaque détectée, tout va bien")
 
         self.summary = self._gen_summary()
 
@@ -72,6 +86,15 @@ class Capture:
         most_used = list(self.protocols)[0]
         summary = (
             f"{total} paquets ont été capturés sur l'interface {self.interface}. "
-            f"Le protocole le plus utilisé est {most_used} avec {self.protocols[most_used]} paquets."
+            f"Le protocole le plus utilisé est {most_used} avec {self.protocols[most_used]} paquets. "
         )
-        return summary
+        return summary + self._gen_attacks_summary()
+
+    def _gen_attacks_summary(self) -> str:
+        """
+        Génère la partie du résumé sur la légitimité du trafic
+        """
+        if not self.attacks:
+            return "Aucune attaque détectée, tout va bien."
+        attack_names = ", ".join(attack.name for attack in self.attacks)
+        return f"{len(self.attacks)} tentative(s) d'attaque détectée(s) : {attack_names}."
