@@ -1,6 +1,6 @@
 from scapy.all import ARP, IP, TCP, Ether
 
-from src.tp1.utils.detection import detect_arp_spoofing, detect_attacks
+from src.tp1.utils.detection import detect_arp_spoofing, detect_attacks, detect_syn_scan
 
 GATEWAY_IP, GATEWAY_MAC = "192.168.1.1", "00:00:00:00:00:01"
 VICTIM_IP, VICTIM_MAC = "192.168.1.10", "00:00:00:00:00:10"
@@ -70,6 +70,62 @@ def test_given_arp_probes_without_ip_when_detect_arp_spoofing_then_they_are_igno
 
     # When
     result = detect_arp_spoofing(packets)
+
+    # Then
+    assert result == []
+
+
+def syn(source_ip: str, destination_ip: str, port: int, flags: str = "S") -> Ether:
+    """
+    Demande de connexion TCP de source_ip vers destination_ip:port
+    """
+    return Ether(src=ATTACKER_MAC) / IP(src=source_ip, dst=destination_ip) / TCP(dport=port, flags=flags)
+
+
+def test_given_syn_to_many_ports_when_detect_syn_scan_then_scanner_is_found():
+    # Given
+    packets = [syn(ATTACKER_IP, VICTIM_IP, port) for port in range(1, 21)]
+
+    # When
+    result = detect_syn_scan(packets)
+
+    # Then
+    assert len(result) == 1
+    attack = result[0]
+    assert (attack.attack_type, attack.protocol, attack.attacker_ip) == ("syn_scan", "TCP", ATTACKER_IP)
+    assert attack.get_attacker() == ATTACKER_IP
+    assert attack.attacker_mac == ATTACKER_MAC
+    assert attack.details == f"20 ports visés sur {VICTIM_IP}"
+
+
+def test_given_web_browsing_when_detect_syn_scan_then_nothing_is_found():
+    # Given
+    packets = [syn(VICTIM_IP, f"93.184.216.{server}", 443) for server in range(1, 30)]
+
+    # When
+    result = detect_syn_scan(packets)
+
+    # Then
+    assert result == []
+
+
+def test_given_syn_ack_answers_when_detect_syn_scan_then_they_are_not_counted():
+    # Given
+    packets = [syn(VICTIM_IP, ATTACKER_IP, port, flags="SA") for port in range(1, 21)]
+
+    # When
+    result = detect_syn_scan(packets)
+
+    # Then
+    assert result == []
+
+
+def test_given_few_ports_when_detect_syn_scan_then_nothing_is_found():
+    # Given
+    packets = [syn(ATTACKER_IP, VICTIM_IP, port) for port in range(1, 10)]
+
+    # When
+    result = detect_syn_scan(packets)
 
     # Then
     assert result == []

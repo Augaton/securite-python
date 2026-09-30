@@ -1,9 +1,11 @@
 from collections import Counter, defaultdict
 from dataclasses import dataclass
 
-from scapy.all import ARP, IP, Ether, IPv6, Packet
+from scapy.all import ARP, IP, TCP, Ether, IPv6, Packet
 
 UNKNOWN = "inconnue"
+# Nombre de ports différents visés par des SYN à partir duquel on considère que c'est un scan
+SYN_SCAN_MIN_PORTS = 10
 
 
 @dataclass(frozen=True)
@@ -48,6 +50,16 @@ def get_source_ip(packet: Packet) -> str:
     for ip_layer in (IP, IPv6):
         if packet.haslayer(ip_layer):
             return packet[ip_layer].src
+    return UNKNOWN
+
+
+def get_destination_ip(packet: Packet) -> str:
+    """
+    Retourne l'adresse IP destination d'un paquet (IPv4 ou IPv6)
+    """
+    for ip_layer in (IP, IPv6):
+        if packet.haslayer(ip_layer):
+            return packet[ip_layer].dst
     return UNKNOWN
 
 
@@ -116,6 +128,34 @@ def detect_arp_spoofing(packets: list[Packet]) -> list[Attack]:
     ]
 
 
+def detect_syn_scan(packets: list[Packet]) -> list[Attack]:
+    """
+    Scan SYN : l'attaquant envoie des demandes de connexion TCP (SYN seul, sans ACK) vers beaucoup
+    de ports pour trouver les services ouverts, sans jamais terminer les connexions
+    """
+    ports_by_ip = defaultdict(set)  # IP source -> ports visés
+    targets_by_ip = defaultdict(set)  # IP source -> machines visées
+    mac_by_ip = {}
+    for packet in packets:
+        if packet.haslayer(TCP) and packet[TCP].flags == "S":
+            source_ip = get_source_ip(packet)
+            ports_by_ip[source_ip].add(packet[TCP].dport)
+            targets_by_ip[source_ip].add(get_destination_ip(packet))
+            mac_by_ip.setdefault(source_ip, get_source_mac(packet))
+    return [
+        Attack(
+            attack_type="syn_scan",
+            name="Scan SYN",
+            protocol="TCP",
+            attacker_ip=ip,
+            attacker_mac=mac_by_ip[ip],
+            details=f"{len(ports)} ports visés sur {', '.join(sorted(targets_by_ip[ip]))}",
+        )
+        for ip, ports in ports_by_ip.items()
+        if len(ports) >= SYN_SCAN_MIN_PORTS
+    ]
+
+
 def detect_attacks(packets: list[Packet]) -> list[Attack]:
     """
     Cherche toutes les attaques connues dans les paquets capturés
@@ -123,4 +163,4 @@ def detect_attacks(packets: list[Packet]) -> list[Attack]:
     :param packets: paquets capturés
     :return: tentatives d'attaque trouvées, liste vide si tout va bien
     """
-    return detect_arp_spoofing(packets)
+    return detect_arp_spoofing(packets) + detect_syn_scan(packets)
