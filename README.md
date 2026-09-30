@@ -35,17 +35,25 @@ sudo "$(poetry env info --path)/bin/tp1"
 
 (`sudo poetry run tp1` marche pas parce que root n'a pas poetry, d'où le chemin complet)
 
+Pour analyser un fichier pcap au lieu d'écouter le réseau (pas besoin de sudo), on le donne directement,
+c'est aussi comme ça que le correcteur lance l'outil :
+
+```bash
+python src/tp1/main.py capture.pcap
+```
+
 Options :
 
 - `--timeout 120` : durée de la capture en secondes (60 par défaut), à mettre assez long pour que le
   conteneur attaquant ait le temps de rejouer tout son PCAP. Ctrl+C arrête la capture avant la fin.
-- `--pcap fichier.pcap` : analyser un fichier pcap au lieu d'écouter le réseau (pas besoin de sudo),
-  pratique pour tester
+- `--pcap fichier.pcap` ou `-r fichier.pcap` : pareil que donner le fichier directement
+- une option inconnue est ignorée (avec un avertissement) au lieu de faire planter le programme
 
 Ensuite :
 
 1. la liste des interfaces s'affiche, on tape le numéro (ou le nom) de celle qu'on veut écouter, ou Entrée
-   pour prendre celle par défaut (si le choix est pas bon ça redemande)
+   pour prendre celle par défaut (si le choix est pas bon ça redemande). S'il n'y a pas de clavier (lancé
+   par un script) ça prend direct l'interface par défaut
 2. ça capture pendant 60 secondes (ou le `--timeout`), sans limite de paquets
 3. le nombre de paquets par protocole et les attaques trouvées s'affichent dans les logs
 4. les fichiers sont créés dans le dossier où on lance le programme :
@@ -121,7 +129,9 @@ poetry run pytest
 pre-commit run --all-files
 ```
 
-Pas besoin d'être root pour les tests, la capture est simulée.
+Pas besoin d'être root pour les tests, la capture est simulée. Le `conftest.py` à la racine fait
+marcher les tests même si le projet n'est pas installé ou que son dossier est en lecture seule (c'est ce
+qui les faisait tous échouer chez le correcteur).
 
 ## Problèmes
 
