@@ -1,6 +1,8 @@
 from unittest.mock import MagicMock, patch
 
-from src.tp1.utils.lib import choose_interface, hello_world
+from scapy.all import DNS, IP, TCP, UDP, Ether, IPv6, Raw
+
+from src.tp1.utils.lib import choose_interface, get_protocol, hello_world
 
 
 def test_when_hello_world_then_return_hello_world():
@@ -39,3 +41,36 @@ def test_given_wrong_choice_when_choose_interface_then_return_default_interface(
 
     # Then
     assert result == "wlan0"
+
+
+def test_given_dns_packet_when_get_protocol_then_return_dns():
+    # Given
+    packet = Ether() / IP() / UDP() / DNS()
+
+    # When
+    result = get_protocol(packet)
+
+    # Then
+    assert result == "DNS"
+
+
+def test_given_tcp_packet_with_data_when_get_protocol_then_return_tcp():
+    # Given
+    packet = Ether() / IP() / TCP() / Raw(b"hello")
+
+    # When
+    result = get_protocol(packet)
+
+    # Then
+    assert result == "TCP"
+
+
+def test_given_unknown_protocol_when_get_protocol_then_return_autre():
+    # Given
+    packet = Ether() / IPv6()
+
+    # When
+    result = get_protocol(packet)
+
+    # Then
+    assert result == "Autre"

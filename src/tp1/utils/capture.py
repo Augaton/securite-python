@@ -1,47 +1,55 @@
-from src.tp1.utils.lib import choose_interface
-from tp1.utils.config import logger
+from scapy.all import sniff
+
+from src.tp1.utils.config import logger
+from src.tp1.utils.lib import choose_interface, get_protocol
+
+# La capture s'arrête au bout de 100 paquets ou de 30 secondes
+NB_PACKETS = 100
+TIMEOUT = 30
 
 
 class Capture:
     def __init__(self) -> None:
         self.interface = choose_interface()
+        self.packets = []
+        self.protocols = {}  # {protocole: nombre de paquets}
         self.summary = ""
 
     def capture_traffic(self) -> None:
         """
         Capture network traffic from an interface
         """
-        interface = self.interface
-        logger.info(f"Capture traffic from interface {interface}")
+        logger.info(f"Capture sur {self.interface} ({NB_PACKETS} paquets max ou {TIMEOUT} secondes)")
+        self.packets = sniff(iface=self.interface, count=NB_PACKETS, timeout=TIMEOUT)
+        logger.info(f"{len(self.packets)} paquets capturés")
 
-    def sort_network_protocols(self) -> str:
+    def sort_network_protocols(self) -> dict:
         """
-        Sort and return all captured network protocols
+        Sort and return all captured network protocols (du plus utilisé au moins utilisé)
         """
-        return ""
+        all_protocols = self.get_all_protocols()
+        return dict(sorted(all_protocols.items(), key=lambda item: item[1], reverse=True))
 
-    def get_all_protocols(self) -> str:
+    def get_all_protocols(self) -> dict:
         """
         Return all protocols captured with total packets number
         """
-        return ""
+        protocols = {}
+        for packet in self.packets:
+            protocol = get_protocol(packet)
+            if protocol in protocols:
+                protocols[protocol] += 1
+            else:
+                protocols[protocol] = 1
+        return protocols
 
-    def analyse(self, protocols: str) -> None:
+    def analyse(self) -> None:
         """
-        Analyse all captured data and return statement
-        Si un tra c est illégitime (exemple : Injection SQL, ARP
-        Spoo ng, etc)
-        a Noter la tentative d'attaque.
-        b Relever le protocole ainsi que l'adresse réseau/physique
-        de l'attaquant.
-        c (FACULTATIF) Opérer le blocage de la machine
-        attaquante.
-        Sinon a cher que tout va bien
+        Compte les paquets de chaque protocole et génère le résumé
         """
-        all_protocols = self.get_all_protocols()
-        sort = self.sort_network_protocols()
-        logger.debug(f"All protocols: {all_protocols}")
-        logger.debug(f"Sorted protocols: {sort}")
+        self.protocols = self.sort_network_protocols()
+        for protocol, count in self.protocols.items():
+            logger.info(f"{protocol} : {count} paquets")
 
         self.summary = self._gen_summary()
 
@@ -56,5 +64,14 @@ class Capture:
         """
         Generate summary
         """
-        summary = ""
+        total = sum(self.protocols.values())
+        if total == 0:
+            return f"Aucun paquet capturé sur {self.interface}."
+
+        # le dictionnaire est trié donc le premier protocole est le plus utilisé
+        most_used = list(self.protocols)[0]
+        summary = (
+            f"{total} paquets ont été capturés sur l'interface {self.interface}. "
+            f"Le protocole le plus utilisé est {most_used} avec {self.protocols[most_used]} paquets."
+        )
         return summary

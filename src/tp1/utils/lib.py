@@ -1,6 +1,10 @@
-from scapy.all import conf, get_if_list
+from scapy.all import Packet, conf, get_if_list
 
 from src.tp1.utils.config import logger
+
+# Protocoles qu'on reconnait. L'ordre compte : DNS doit être avant UDP sinon tous les paquets DNS
+# seraient comptés comme UDP
+KNOWN_PROTOCOLS = ["DNS", "TCP", "UDP", "ICMP", "ARP"]
 
 
 def hello_world() -> str:
@@ -29,3 +33,16 @@ def choose_interface() -> str:
     # si le choix est pas bon on prend l'interface par défaut de scapy
     logger.warning(f"Choix invalide, on prend l'interface par défaut : {conf.iface}")
     return str(conf.iface)
+
+
+def get_protocol(packet: Packet) -> str:
+    """
+    Retourne le protocole d'un paquet (le premier de KNOWN_PROTOCOLS qui est dans le paquet)
+
+    :param packet: paquet capturé avec scapy
+    :return: nom du protocole, "Autre" si on le connait pas
+    """
+    for protocol in KNOWN_PROTOCOLS:
+        if packet.haslayer(protocol):
+            return protocol
+    return "Autre"
