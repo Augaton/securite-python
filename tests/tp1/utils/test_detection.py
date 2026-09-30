@@ -30,10 +30,11 @@ def test_given_legit_arp_traffic_when_detect_attacks_then_nothing_is_found():
 
 def test_given_mac_claiming_gateway_and_victim_when_detect_arp_spoofing_then_attacker_is_found():
     # Given
-    packets = [arp_reply(GATEWAY_IP, ATTACKER_MAC), arp_reply(VICTIM_IP, ATTACKER_MAC)] * 3
+    real_replies = [arp_reply(GATEWAY_IP, GATEWAY_MAC), arp_reply(VICTIM_IP, VICTIM_MAC)]
+    spoofed_replies = [arp_reply(GATEWAY_IP, ATTACKER_MAC), arp_reply(VICTIM_IP, ATTACKER_MAC)] * 3
 
     # When
-    result = analyse_packets(packets).get_arp_spoofing_attacks()
+    result = analyse_packets(real_replies + spoofed_replies).get_arp_spoofing_attacks()
 
     # Then
     assert len(result) == 1
@@ -57,7 +58,12 @@ def test_given_gateway_ip_claimed_again_by_other_mac_when_detect_arp_spoofing_th
 def test_given_attacker_ip_traffic_when_detect_arp_spoofing_then_its_real_ip_is_found():
     # Given
     own_traffic = Ether(src=ATTACKER_MAC) / IP(src=ATTACKER_IP) / TCP()
-    packets = [own_traffic, arp_reply(ATTACKER_IP, ATTACKER_MAC), arp_reply(GATEWAY_IP, ATTACKER_MAC)]
+    packets = [
+        own_traffic,
+        arp_reply(GATEWAY_IP, GATEWAY_MAC),
+        arp_reply(ATTACKER_IP, ATTACKER_MAC),
+        arp_reply(GATEWAY_IP, ATTACKER_MAC),
+    ]
 
     # When
     result = analyse_packets(packets).get_arp_spoofing_attacks()
@@ -246,18 +252,16 @@ def test_given_real_owner_announcing_often_when_detect_arp_spoofing_then_newcome
     assert [attack.attacker_mac for attack in result] == [ATTACKER_MAC]
 
 
-def test_given_spoofing_before_real_reply_when_detect_attacks_then_mac_of_scanner_is_accused():
+def test_given_mac_shared_by_several_hosts_when_detect_arp_spoofing_then_nothing_is_found():
     # Given
-    spoofed_replies = [arp_reply(GATEWAY_IP, ATTACKER_MAC)] * 3
-    real_reply = [arp_reply(GATEWAY_IP, GATEWAY_MAC)]
-    scan = [syn(ATTACKER_IP, VICTIM_IP, port) for port in range(1, 21)]
+    # capture générée : plusieurs machines légitimes ont la même MAC, sans jamais se disputer une IP
+    packets = [arp_reply(f"192.168.1.{host}", VICTIM_MAC) for host in (10, 11, 12, 13)]
 
     # When
-    result = analyse_packets(spoofed_replies + real_reply + scan).get_attacks()
+    result = analyse_packets(packets).get_arp_spoofing_attacks()
 
     # Then
-    arp_attacks = [attack for attack in result if attack.attack_type == "arp_spoofing"]
-    assert [attack.attacker_mac for attack in arp_attacks] == [ATTACKER_MAC]
+    assert result == []
 
 
 def test_given_marker_with_control_characters_when_find_flag_then_it_is_rejected():

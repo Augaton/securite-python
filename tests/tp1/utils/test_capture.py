@@ -155,13 +155,9 @@ def test_given_no_packet_when_gen_summary_then_say_no_packet():
 def test_given_arp_spoofing_when_analyse_then_attack_is_noted_in_summary():
     # Given
     capture = Capture()
-    feed(
-        capture,
-        [
-            Ether(src="aa:bb:cc:dd:ee:ff") / ARP(op=2, psrc=ip, hwsrc="aa:bb:cc:dd:ee:ff")
-            for ip in ("192.168.1.1", "192.168.1.10")
-        ],
-    )
+    real_reply = Ether(src="00:00:00:00:00:01") / ARP(op=2, psrc="192.168.1.1", hwsrc="00:00:00:00:00:01")
+    spoofed_reply = Ether(src="aa:bb:cc:dd:ee:ff") / ARP(op=2, psrc="192.168.1.1", hwsrc="aa:bb:cc:dd:ee:ff")
+    feed(capture, [real_reply, spoofed_reply])
 
     # When
     capture.analyse()

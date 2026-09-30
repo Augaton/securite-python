@@ -146,7 +146,6 @@ class TrafficAnalyzer:
 
     def __init__(self) -> None:
         self.arp_macs_by_ip = defaultdict(dict)  # {IP : {MAC : rang d'arrivée}}
-        self.arp_ips_by_mac = defaultdict(set)
         # vraie IP d'une MAC, vue dans son trafic IP : en ARP spoofing l'IP annoncée est celle de la victime
         self.ip_by_mac = {}
         self.syn_ports_by_ip = defaultdict(set)
@@ -176,7 +175,6 @@ class TrafficAnalyzer:
         if is_ipv4_arp(arp) and arp.psrc != "0.0.0.0":
             macs = self.arp_macs_by_ip[arp.psrc]
             macs.setdefault(arp.hwsrc, len(macs))
-            self.arp_ips_by_mac[arp.hwsrc].add(arp.psrc)
 
     def add_tcp(self, packet: Packet, source_ip: str) -> None:
         """
@@ -196,30 +194,24 @@ class TrafficAnalyzer:
         """
         Retourne toutes les tentatives d'attaque trouvées
         """
-        ip_attacks = self.get_syn_scan_attacks() + self.get_sql_injection_attacks()
-        other_attacker_macs = {attack.attacker_mac for attack in ip_attacks}
-        return self.get_arp_spoofing_attacks(other_attacker_macs) + ip_attacks
+        return (
+            self.get_arp_spoofing_attacks() + self.get_syn_scan_attacks() + self.get_sql_injection_attacks()
+        )
 
-    def find_arp_spoofers(self, other_attacker_macs: set[str]) -> dict[str, set[str]]:
+    def find_arp_spoofers(self) -> dict[str, set[str]]:
         """
-        Retourne les MAC qui usurpent des IP, avec les IP usurpées :
-        - une MAC qui annonce plusieurs IP les usurpe toutes
-        - pour une IP annoncée par plusieurs MAC, on accuse celle déjà suspecte (plusieurs IP, ou source
-          d'une autre attaque), sinon la dernière arrivée (comme arpwatch). Pas le nombre d'annonces :
-          la vraie passerelle en fait souvent plus que l'attaquant
+        Retourne les MAC qui usurpent des IP, avec les IP usurpées. Comme arpwatch : la première MAC vue
+        pour une IP est la vraie, celles qui l'annoncent ensuite l'usurpent. Une MAC qui annonce plusieurs
+        IP n'est pas suspecte en soi (dans une capture générée, plusieurs machines partagent une MAC)
         """
-        several_ips_macs = {mac for mac, ips in self.arp_ips_by_mac.items() if len(ips) > 1}
-        suspect_macs = several_ips_macs | other_attacker_macs
         spoofed_ips_by_mac = defaultdict(set)
-        for mac in several_ips_macs:
-            spoofed_ips_by_mac[mac] |= self.arp_ips_by_mac[mac] - {self.ip_by_mac.get(mac)}
         for ip, macs in self.arp_macs_by_ip.items():
-            if len(macs) > 1:
-                spoofer = max(macs, key=lambda mac: (mac in suspect_macs, macs[mac]))
-                spoofed_ips_by_mac[spoofer].add(ip)
+            for mac, arrival_rank in macs.items():
+                if arrival_rank > 0:
+                    spoofed_ips_by_mac[mac].add(ip)
         return spoofed_ips_by_mac
 
-    def get_arp_spoofing_attacks(self, other_attacker_macs: set[str] | None = None) -> list[Attack]:
+    def get_arp_spoofing_attacks(self) -> list[Attack]:
         """
         Retourne les ARP spoofing : de fausses annonces ARP pour recevoir le trafic d'une autre machine
         """
@@ -232,7 +224,7 @@ class TrafficAnalyzer:
                 attacker_mac=mac,
                 details=f"se fait passer pour {', '.join(sorted(spoofed_ips))}",
             )
-            for mac, spoofed_ips in self.find_arp_spoofers(other_attacker_macs or set()).items()
+            for mac, spoofed_ips in self.find_arp_spoofers().items()
         ]
 
     def get_syn_scan_attacks(self) -> list[Attack]:
