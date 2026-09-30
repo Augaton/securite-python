@@ -1,6 +1,7 @@
 import logging
 import os
 import pwd
+import sys
 
 from scapy.all import (
     ICMPerror,
@@ -52,7 +53,8 @@ def parse_interface_choice(choice: str, interfaces: list[str]) -> str | None:
 def choose_interface() -> str:
     """
     Affiche les interfaces réseau et demande à l'utilisateur d'en choisir une,
-    jusqu'à ce que le choix soit valide (une faute de frappe ne lance pas la capture ailleurs)
+    jusqu'à ce que le choix soit valide (une faute de frappe ne lance pas la capture ailleurs).
+    Sans clavier (script, correction automatique), pas de question : l'interface par défaut est prise
 
     :return: network interface
     """
@@ -61,7 +63,13 @@ def choose_interface() -> str:
         logger.info(f"{index} : {interface}")
 
     while True:
-        choice = input(f"Numéro de l'interface à écouter (Entrée = {conf.iface}) : ")
+        try:
+            if sys.stdin is None or not sys.stdin.isatty():
+                raise EOFError
+            choice = input(f"Numéro de l'interface à écouter (Entrée = {conf.iface}) : ")
+        except EOFError:
+            logger.info(f"Pas de saisie possible, interface par défaut : {conf.iface}")
+            return str(conf.iface)
         interface = parse_interface_choice(choice, interfaces)
         if interface is not None:
             return interface

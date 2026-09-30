@@ -26,8 +26,18 @@ def test_when_hello_world_then_return_hello_world():
     assert result == string
 
 
+@pytest.fixture
+def keyboard():
+    """
+    Simule un terminal : sous pytest l'entrée standard n'est pas un clavier
+    """
+    with patch("src.tp1.utils.lib.sys.stdin") as mock_stdin:
+        mock_stdin.isatty.return_value = True
+        yield mock_stdin
+
+
 @patch("src.tp1.utils.lib.get_if_list", return_value=["lo", "eth0"])
-def test_given_interface_number_when_choose_interface_then_return_interface(mock_get_if_list):
+def test_given_interface_number_when_choose_interface_then_return_interface(mock_get_if_list, keyboard):
     # Given
     user_choice = "1"
 
@@ -40,7 +50,7 @@ def test_given_interface_number_when_choose_interface_then_return_interface(mock
 
 
 @patch("src.tp1.utils.lib.get_if_list", return_value=["lo", "eth0"])
-def test_given_wrong_then_valid_choice_when_choose_interface_then_ask_again(mock_get_if_list):
+def test_given_wrong_then_valid_choice_when_choose_interface_then_ask_again(mock_get_if_list, keyboard):
     # Given
     user_choices = ["abc", "1"]
 
@@ -228,3 +238,29 @@ def test_given_log_file_when_give_log_files_to_then_chown_without_following_link
 
     # Then
     mock_chown.assert_any_call(str(tmp_path / "app.log"), 1000, 1001, follow_symlinks=False)
+
+
+@patch("src.tp1.utils.lib.conf", MagicMock(iface="wlan0"))
+@patch("src.tp1.utils.lib.get_if_list", return_value=["lo", "eth0"])
+def test_given_no_keyboard_when_choose_interface_then_default_interface_without_question(mock_get_if_list):
+    # Given
+    with patch("src.tp1.utils.lib.sys.stdin") as mock_stdin, patch("builtins.input") as mock_input:
+        mock_stdin.isatty.return_value = False
+
+        # When
+        result = choose_interface()
+
+    # Then
+    assert result == "wlan0"
+    mock_input.assert_not_called()
+
+
+@patch("src.tp1.utils.lib.conf", MagicMock(iface="wlan0"))
+@patch("src.tp1.utils.lib.get_if_list", return_value=["lo", "eth0"])
+def test_given_end_of_input_when_choose_interface_then_default_interface(mock_get_if_list, keyboard):
+    # When
+    with patch("builtins.input", side_effect=EOFError):
+        result = choose_interface()
+
+    # Then
+    assert result == "wlan0"

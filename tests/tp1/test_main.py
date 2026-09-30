@@ -100,3 +100,34 @@ def test_when_main_then_generated_files_are_private(mock_capture, mock_report):
 
     # Then
     mock_umask.assert_called_once_with(0o077)
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        ["{pcap}"],
+        ["-r", "{pcap}"],
+        ["--output", "sortie", "{pcap}"],
+        ["{pcap}", "--format", "json", "--verbose"],
+    ],
+)
+def test_given_pcap_given_in_any_way_when_parse_arguments_then_it_is_found(arguments, tmp_path):
+    # Given
+    pcap_file = tmp_path / "holdout.pcap"
+    pcap_file.write_bytes(b"")
+    arguments = [argument.format(pcap=pcap_file) for argument in arguments]
+
+    # When
+    options = parse_arguments(arguments)
+
+    # Then
+    assert options.pcap == str(pcap_file)
+
+
+def test_given_unknown_arguments_when_parse_arguments_then_warn_instead_of_stopping(caplog):
+    # When
+    options = parse_arguments(["--verbose", "--output", "sortie"])
+
+    # Then
+    assert options.pcap is None
+    assert "Arguments inconnus ignorés : --verbose --output sortie" in caplog.text
