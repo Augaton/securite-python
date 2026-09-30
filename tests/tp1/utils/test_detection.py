@@ -224,3 +224,16 @@ def test_given_no_marker_when_find_flag_then_return_none():
 
     # Then
     assert result is None
+
+
+def test_given_malformed_arp_packet_when_detect_attacks_then_it_is_ignored_without_crashing():
+    # Given
+    # ARP avec un type de protocole inconnu : scapy donne psrc en octets bruts au lieu de texte
+    malformed = Ether(bytes(Ether(src=ATTACKER_MAC) / ARP(op=2, ptype=0x1234, plen=5, hwsrc=ATTACKER_MAC)))
+    packets = [arp_reply(GATEWAY_IP, ATTACKER_MAC), malformed]
+
+    # When
+    result = detect_attacks(packets)
+
+    # Then
+    assert result == []

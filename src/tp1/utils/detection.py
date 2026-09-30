@@ -92,6 +92,16 @@ def find_ip_of_mac(packets: list[Packet], mac: str) -> str:
     return UNKNOWN
 
 
+def is_ipv4_arp(arp: ARP) -> bool:
+    """
+    Vérifie que c'est un ARP classique (IPv4 sur Ethernet). Dans un ARP malformé, scapy donne les
+    adresses en octets bruts au lieu de texte, ce qui faisait planter l'analyse : un seul paquet
+    bizarre envoyé par un attaquant suffisait à couper l'outil
+    """
+    # hwlen et plen valent None dans un paquet construit à la main (calculés à l'envoi)
+    return arp.hwtype == 1 and arp.ptype == 0x0800 and arp.hwlen in (None, 6) and arp.plen in (None, 4)
+
+
 def count_arp_announces(packets: list[Packet]) -> tuple[dict[str, Counter], dict[str, set[str]]]:
     """
     Chaque paquet ARP annonce "l'IP psrc est à la MAC hwsrc" (0.0.0.0 = machine sans IP, ignorée).
@@ -102,7 +112,7 @@ def count_arp_announces(packets: list[Packet]) -> tuple[dict[str, Counter], dict
     macs_by_ip = defaultdict(Counter)
     ips_by_mac = defaultdict(set)
     for packet in packets:
-        if packet.haslayer(ARP) and packet[ARP].psrc != "0.0.0.0":
+        if packet.haslayer(ARP) and is_ipv4_arp(packet[ARP]) and packet[ARP].psrc != "0.0.0.0":
             macs_by_ip[packet[ARP].psrc][packet[ARP].hwsrc] += 1
             ips_by_mac[packet[ARP].hwsrc].add(packet[ARP].psrc)
     return macs_by_ip, ips_by_mac
