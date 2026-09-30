@@ -1,10 +1,13 @@
-from unittest.mock import MagicMock, patch
+import logging
+from unittest.mock import MagicMock, call, patch
 
 import pytest
 from scapy.all import ARP, DNS, IP, TCP, UDP, Ether, ICMPv6ND_NS, IPv6, Padding, Raw
 
 from src.tp1.utils.lib import (
     choose_interface,
+    drop_privileges,
+    give_log_files_to,
     format_share,
     get_protocol,
     hello_world,
@@ -135,3 +138,81 @@ def test_when_format_share_then_return_percentage(count, total, expected_share):
 
     # Then
     assert result == expected_share
+
+
+SUDO_USER = MagicMock(pw_name="etudiant", pw_uid=1000, pw_gid=1001, pw_dir="/home/etudiant")
+IDENTITY_CALLS = ("initgroups", "setgid", "setuid")
+
+
+@pytest.fixture
+def mock_os():
+    """
+    Remplace les appels système de changement d'utilisateur : les tests ne tournent pas en root
+    """
+    with (
+        patch("src.tp1.utils.lib.get_sudo_user", return_value=SUDO_USER),
+        patch("src.tp1.utils.lib.os") as mock_os,
+    ):
+        mock_os.environ = {"HOME": "/root"}
+        mock_os.geteuid.return_value = 0
+        mock_os.getresuid.return_value = (1000, 1000, 1000)
+        yield mock_os
+
+
+def test_given_root_launched_with_sudo_when_drop_privileges_then_become_the_sudo_user(mock_os):
+    # When
+    with patch("src.tp1.utils.lib.give_log_files_to") as mock_give_log_files_to:
+        drop_privileges()
+
+    # Then
+    # les groupes et le gid doivent changer avant l'uid : après, root n'est plus là pour le faire
+    identity_calls = [method_call for method_call in mock_os.method_calls if method_call[0] in IDENTITY_CALLS]
+    assert identity_calls == [call.initgroups("etudiant", 1001), call.setgid(1001), call.setuid(1000)]
+    mock_give_log_files_to.assert_called_once_with(SUDO_USER)
+    assert mock_os.environ["HOME"] == "/home/etudiant"
+
+
+def test_given_not_root_when_drop_privileges_then_nothing_changes(mock_os):
+    # Given
+    mock_os.geteuid.return_value = 1000
+
+    # When
+    drop_privileges()
+
+    # Then
+    mock_os.setuid.assert_not_called()
+
+
+def test_given_root_without_sudo_when_drop_privileges_then_nothing_changes(mock_os):
+    # When
+    with patch("src.tp1.utils.lib.get_sudo_user", return_value=None):
+        drop_privileges()
+
+    # Then
+    mock_os.setuid.assert_not_called()
+
+
+def test_given_root_still_there_after_setuid_when_drop_privileges_then_stop(mock_os):
+    # Given
+    mock_os.getresuid.return_value = (1000, 1000, 0)
+
+    # When / Then
+    with patch("src.tp1.utils.lib.give_log_files_to"), pytest.raises(RuntimeError):
+        drop_privileges()
+
+
+def test_given_log_file_when_give_log_files_to_then_chown_without_following_links(tmp_path):
+    # Given
+    file_handler = logging.FileHandler(tmp_path / "app.log")
+    logging.getLogger().addHandler(file_handler)
+
+    # When
+    try:
+        with patch("src.tp1.utils.lib.os.chown") as mock_chown:
+            give_log_files_to(SUDO_USER)
+    finally:
+        logging.getLogger().removeHandler(file_handler)
+        file_handler.close()
+
+    # Then
+    mock_chown.assert_any_call(str(tmp_path / "app.log"), 1000, 1001, follow_symlinks=False)

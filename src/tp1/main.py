@@ -4,6 +4,7 @@ from pathlib import Path
 
 from src.tp1.utils.capture import TIMEOUT, Capture
 from src.tp1.utils.config import logger
+from src.tp1.utils.lib import drop_privileges
 from src.tp1.utils.report import Report
 
 
@@ -35,13 +36,16 @@ def main(arguments: list[str] | None = None):
 
     capture = Capture(options.pcap, options.timeout)
     try:
-        capture.capture_traffic()
+        capture.open_socket()
     except PermissionError:
         # scapy a besoin d'être root pour écouter une interface, et root ne connait pas poetry :
         # on donne le chemin complet du script à relancer avec sudo
         tp1_script = Path(sys.executable).parent / "tp1"
         logger.error(f"Pas les droits pour capturer les paquets, relancer avec : sudo {tp1_script}")
         return
+    drop_privileges()
+
+    capture.capture_traffic()
     capture.analyse()
     summary = capture.get_summary()
     logger.info(summary)

@@ -24,7 +24,8 @@ def test_capture_init():
     assert capture.summary == ""
 
 
-def test_given_capture_when_capture_traffic_then_packets_are_saved():
+@patch("src.tp1.utils.capture.conf")
+def test_given_capture_when_capture_traffic_then_packets_are_saved(mock_conf):
     # Given
     capture = Capture()
     packets = [Ether() / IP() / TCP(), Ether() / ARP()]
@@ -34,8 +35,37 @@ def test_given_capture_when_capture_traffic_then_packets_are_saved():
         capture.capture_traffic()
 
     # Then
-    mock_sniff.assert_called_once_with(iface="eth0", timeout=60)
+    mock_conf.L2listen.assert_called_once_with(iface="eth0")
+    listen_socket = mock_conf.L2listen.return_value
+    mock_sniff.assert_called_once_with(opened_socket=listen_socket, timeout=60)
+    listen_socket.close.assert_called_once()
     assert capture.packets == packets
+
+
+@patch("src.tp1.utils.capture.conf")
+def test_given_error_during_capture_when_capture_traffic_then_socket_is_closed(mock_conf):
+    # Given
+    capture = Capture()
+
+    # When
+    with patch("src.tp1.utils.capture.sniff", side_effect=OSError), pytest.raises(OSError):
+        capture.capture_traffic()
+
+    # Then
+    mock_conf.L2listen.return_value.close.assert_called_once()
+    assert capture.listen_socket is None
+
+
+@patch("src.tp1.utils.capture.conf")
+def test_given_pcap_file_when_open_socket_then_nothing_is_opened(mock_conf, tmp_path):
+    # Given
+    capture = Capture(pcap_file=str(tmp_path / "attaque.pcap"))
+
+    # When
+    capture.open_socket()
+
+    # Then
+    mock_conf.L2listen.assert_not_called()
 
 
 def test_get_all_protocols():

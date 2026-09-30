@@ -29,12 +29,13 @@ def test_when_main_then_report_is_saved(mock_capture, mock_report):
 @patch("src.tp1.main.Capture")
 def test_given_no_root_when_main_then_no_report_and_sudo_command_is_given(mock_capture, mock_report, caplog):
     # Given
-    mock_capture.return_value.capture_traffic.side_effect = PermissionError
+    mock_capture.return_value.open_socket.side_effect = PermissionError
 
     # When
     main([])
 
     # Then
+    mock_capture.return_value.capture_traffic.assert_not_called()
     mock_capture.return_value.analyse.assert_not_called()
     mock_report.assert_not_called()
     assert f"sudo {Path(sys.executable).parent / 'tp1'}" in caplog.text
@@ -57,3 +58,22 @@ def test_given_wrong_option_when_parse_arguments_then_stop_with_error(arguments)
     # When / Then
     with pytest.raises(SystemExit):
         parse_arguments(arguments)
+
+
+@patch("src.tp1.main.Report")
+@patch("src.tp1.main.drop_privileges")
+@patch("src.tp1.main.Capture")
+def test_when_main_then_root_is_dropped_between_socket_opening_and_capture(
+    mock_capture, mock_drop, mock_report
+):
+    # Given
+    steps = []
+    mock_capture.return_value.open_socket.side_effect = lambda: steps.append("open_socket")
+    mock_drop.side_effect = lambda: steps.append("drop_privileges")
+    mock_capture.return_value.capture_traffic.side_effect = lambda: steps.append("capture_traffic")
+
+    # When
+    main([])
+
+    # Then
+    assert steps == ["open_socket", "drop_privileges", "capture_traffic"]

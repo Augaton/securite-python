@@ -1,4 +1,4 @@
-from scapy.all import rdpcap, sniff
+from scapy.all import conf, rdpcap, sniff
 
 from src.tp1.utils.config import logger
 from src.tp1.utils.detection import detect_attacks, find_flag
@@ -14,11 +14,20 @@ class Capture:
         self.pcap_file = pcap_file  # fichier à analyser au lieu d'écouter le réseau
         self.timeout = timeout
         self.interface = choose_interface() if pcap_file is None else ""
+        self.listen_socket = None  # socket de capture, ouvert en root par open_socket()
         self.packets = []
         self.protocols = {}  # {protocole: nombre de paquets}
         self.attacks = []  # tentatives d'attaque trouvées par analyse()
         self.flag = None  # marqueur ESGI{...} trouvé dans le trafic
         self.summary = ""
+
+    def open_socket(self) -> None:
+        """
+        Ouvre le socket de capture sur l'interface : c'est la seule étape qui a besoin des droits root
+        (rien à ouvrir pour un fichier pcap)
+        """
+        if self.pcap_file is None:
+            self.listen_socket = conf.L2listen(iface=self.interface)
 
     def capture_traffic(self) -> None:
         """
@@ -28,11 +37,17 @@ class Capture:
             self.packets = rdpcap(self.pcap_file)
             logger.info(f"{len(self.packets)} paquets lus dans {self.pcap_file}")
             return
+        if self.listen_socket is None:
+            self.open_socket()
         logger.info(
             f"Capture sur {self.interface} pendant {self.timeout} secondes (Ctrl+C pour arrêter avant)"
         )
-        # sniff s'arrête proprement sur Ctrl+C et renvoie les paquets déjà capturés
-        self.packets = sniff(iface=self.interface, timeout=self.timeout)
+        try:
+            # sniff s'arrête proprement sur Ctrl+C et renvoie les paquets déjà capturés
+            self.packets = sniff(opened_socket=self.listen_socket, timeout=self.timeout)
+        finally:
+            self.listen_socket.close()
+            self.listen_socket = None
         logger.info(f"{len(self.packets)} paquets capturés")
 
     def get_source(self) -> str:
