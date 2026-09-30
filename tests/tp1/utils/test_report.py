@@ -1,3 +1,4 @@
+import json
 from unittest.mock import MagicMock, patch
 
 from src.tp1.utils.detection import Attack
@@ -187,3 +188,37 @@ def test_given_non_latin1_text_from_attacker_when_concat_report_then_pdf_is_stil
 
     # Then
     assert "requête ??".encode("latin-1") in content
+
+
+def test_when_save_json_then_file_has_the_format_expected_by_the_grader(tmp_path):
+    # Given
+    scan = Attack("syn_scan", "Scan SYN", "TCP", "192.168.1.66", "aa:bb:cc:dd:ee:ff", "20 ports visés")
+    report = Report(make_capture([ARP_ATTACK, scan], flag="ESGI{abc}"), "test.pdf", "Test summary")
+    filename = tmp_path / "report.json"
+
+    # When
+    report.save_json(str(filename))
+
+    # Then
+    assert json.loads(filename.read_text()) == {
+        "protocols": {"ARP": 3, "TCP": 1},
+        "attacks": [
+            {"type": "arp_spoofing", "attacker": "aa:bb:cc:dd:ee:ff"},
+            {"type": "syn_scan", "attacker": "192.168.1.66"},
+        ],
+        "flag": "ESGI{abc}",
+    }
+
+
+def test_given_nothing_found_when_save_json_then_no_attack_and_no_flag(tmp_path):
+    # Given
+    report = Report(make_capture([]), "test.pdf", "Test summary")
+    filename = tmp_path / "report.json"
+
+    # When
+    report.save_json(str(filename))
+
+    # Then
+    result = json.loads(filename.read_text())
+    assert result["attacks"] == []
+    assert result["flag"] is None

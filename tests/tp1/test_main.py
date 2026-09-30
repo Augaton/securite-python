@@ -19,6 +19,7 @@ def test_when_main_then_report_is_saved(mock_capture, mock_report):
     mock_capture.return_value.analyse.assert_called_once()
     mock_report.assert_called_once_with(mock_capture.return_value, "report.pdf", "Test summary")
     mock_report.return_value.save.assert_called_once_with("report.pdf")
+    mock_report.return_value.save_json.assert_called_once_with("report.json")
 
 
 @patch("src.tp1.main.Report")

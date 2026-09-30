@@ -1,3 +1,4 @@
+import json
 from datetime import datetime
 
 from fpdf import FPDF
@@ -156,6 +157,26 @@ class Report:
         pdf = self.concat_report()
         pdf.output(filename)
         logger.info(f"Rapport enregistré dans {filename}")
+
+    def save_json(self, filename: str) -> None:
+        """
+        Enregistre le résultat au format attendu par le correcteur (le PDF reste le livrable "humain") :
+        {"protocols": {"TCP": 128}, "attacks": [{"type": "arp_spoofing", "attacker": "aa:bb:..."}],
+         "flag": "ESGI{...}"}
+
+        :param filename: nom du fichier JSON
+        """
+        result = {
+            "protocols": dict(self.capture.protocols),
+            "attacks": [
+                {"type": attack.attack_type, "attacker": attack.get_attacker()}
+                for attack in self.capture.attacks
+            ],
+            "flag": self.capture.flag,
+        }
+        with open(filename, "w", encoding="utf-8") as json_file:
+            json.dump(result, json_file, indent=2, ensure_ascii=False)
+        logger.info(f"Résultat pour le correcteur enregistré dans {filename}")
 
     def generate(self, param: str) -> None:
         """

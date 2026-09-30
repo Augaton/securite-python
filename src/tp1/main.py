@@ -27,6 +27,7 @@ def main():
     report.generate("graph")
     report.generate("array")
     report.save(filename)
+    report.save_json("report.json")
 
 
 if __name__ == "__main__":
