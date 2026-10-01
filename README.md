@@ -47,6 +47,8 @@ Options :
 - `--timeout 120` : durée de la capture en secondes (60 par défaut), à mettre assez long pour que le
   conteneur attaquant ait le temps de rejouer tout son PCAP. Ctrl+C arrête la capture avant la fin.
 - `--pcap fichier.pcap` ou `-r fichier.pcap` : pareil que donner le fichier directement
+- `--out chemin/report.json` (ou `-o`) : où écrire `report.json` (`report.json` par défaut), le pdf
+  est mis à côté. Le correcteur lance `python src/tp1/main.py --pcap /in/pcap --out /out/report.json`
 - une option inconnue est ignorée (avec un avertissement) au lieu de faire planter le programme
 
 Ensuite :
@@ -56,10 +58,10 @@ Ensuite :
    par un script) ça prend direct l'interface par défaut
 2. ça capture pendant 60 secondes (ou le `--timeout`), sans limite de paquets
 3. le nombre de paquets par protocole et les attaques trouvées s'affichent dans les logs
-4. les fichiers sont créés dans le dossier où on lance le programme :
-   - `report.pdf` : le rapport
-   - `report.json` : le résultat pour le correcteur
-   - `graph.svg` : le graphique, à ouvrir dans un navigateur
+4. les fichiers créés :
+   - `report.json` : le résultat pour le correcteur (là où dit `--out`)
+   - `report.pdf` : le rapport, à côté de `report.json`
+   - `graph.svg` : le graphique, à ouvrir dans un navigateur (dans le dossier où on lance le programme)
 
 Les logs sont aussi écrits dans `app.log`.
 
@@ -71,7 +73,8 @@ Les logs sont aussi écrits dans `app.log`.
 - **scan SYN** : une IP qui envoie des SYN (sans ACK) vers au moins 10 ports différents
 - **injection SQL** : du SQL typique d'une injection (`' OR '1'='1`, `UNION SELECT`, `'--`...) dans une
   requête HTTP. Le HTTPS est chiffré donc on peut pas regarder dedans
-- le **marqueur** `ESGI{...}` est cherché dans tous les paquets (même encodé dans une URL)
+- le **marqueur** `ESGI{...}` est pris dans la requête de l'injection SQL (même encodé dans une URL),
+  pas dans n'importe quel paquet : le pcap du correcteur contient aussi un faux marqueur ailleurs
 
 Dans le pdf chaque protocole est marqué légitime ou illégitime, et chaque attaque est notée avec son
 protocole et l'IP / la MAC de l'attaquant (sinon ça dit que tout va bien). Le blocage de l'attaquant
