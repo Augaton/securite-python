@@ -1,5 +1,5 @@
 import re
-from collections import defaultdict
+from collections import Counter, defaultdict
 from dataclasses import dataclass
 from urllib.parse import unquote_plus
 
@@ -9,6 +9,8 @@ from src.tp1.utils.lib import HTTP_METHODS
 
 UNKNOWN = "inconnue"
 ETHERTYPE_IPV4 = 0x0800
+ARP_WHO_HAS = 1
+ARP_IS_AT = 2
 SYN_SCAN_MIN_PORTS = 10
 SQL_INJECTION_PATTERN = re.compile(
     r"""["']\s*(or|and)\s*["']?\w*["']?\s*="""  # ' OR '1'='1, ' AND 1=1, ' or ''='
@@ -138,6 +140,8 @@ class TrafficAnalyzer:
 
     def __init__(self) -> None:
         self.arp_macs_by_ip = defaultdict(dict)  # {IP : {MAC : rang d'arrivée}}
+        self.arp_requests_waiting = Counter()  # {IP demandée : nombre de "who-has" sans réponse}
+        self.unsolicited_arp_replies = defaultdict(Counter)  # {IP annoncée : {MAC : nombre}}
         # vraie IP d'une MAC, vue dans son trafic IP : en ARP spoofing l'IP annoncée est celle de la victime
         self.ip_by_mac = {}
         self.syn_ports_by_ip = defaultdict(set)
@@ -160,11 +164,27 @@ class TrafficAnalyzer:
 
     def add_arp(self, arp: ARP) -> None:
         """
-        Note l'annonce ARP "l'IP psrc est à la MAC hwsrc" (0.0.0.0 : machine sans IP, ignorée)
+        Note l'annonce ARP "l'IP psrc est à la MAC hwsrc" (0.0.0.0 : machine sans IP, ignorée), et si
+        c'est une réponse que personne n'a demandée
         """
-        if is_ipv4_arp(arp) and arp.psrc != "0.0.0.0":
+        if not is_ipv4_arp(arp):
+            return
+        if arp.op == ARP_WHO_HAS:
+            self.arp_requests_waiting[arp.pdst] += 1
+        elif arp.op == ARP_IS_AT:
+            self.add_arp_reply(arp)
+        if arp.psrc != "0.0.0.0":
             macs = self.arp_macs_by_ip[arp.psrc]
             macs.setdefault(arp.hwsrc, len(macs))
+
+    def add_arp_reply(self, arp: ARP) -> None:
+        """
+        Une réponse ARP répond à une demande pour son IP pas encore servie, sinon elle est non sollicitée
+        """
+        if self.arp_requests_waiting[arp.psrc] > 0:
+            self.arp_requests_waiting[arp.psrc] -= 1
+        else:
+            self.unsolicited_arp_replies[arp.psrc][arp.hwsrc] += 1
 
     def add_tcp(self, packet: Packet, source_ip: str) -> None:
         """
@@ -192,18 +212,36 @@ class TrafficAnalyzer:
             self.get_arp_spoofing_attacks() + self.get_syn_scan_attacks() + self.get_sql_injection_attacks()
         )
 
+    def find_ip_owner(self, ip: str) -> str:
+        """
+        Retourne la vraie MAC d'une IP annoncée par plusieurs MAC : celle qui envoie le moins de réponses
+        ARP non sollicitées (l'usurpateur en envoie en boucle), à égalité la première vue (comme arpwatch)
+        """
+        macs = self.arp_macs_by_ip[ip]
+        unsolicited_replies = self.unsolicited_arp_replies[ip]
+        return min(macs, key=lambda mac: (unsolicited_replies[mac], macs[mac]))
+
     def find_arp_spoofers(self) -> dict[str, set[str]]:
         """
-        Retourne les MAC qui usurpent des IP, avec les IP usurpées. Comme arpwatch : la première MAC vue
-        pour une IP est la vraie, celles qui l'annoncent ensuite l'usurpent. Une MAC qui annonce plusieurs
-        IP n'est pas suspecte en soi (dans une capture générée, plusieurs machines partagent une MAC)
+        Retourne les MAC qui usurpent des IP, avec les IP usurpées : les MAC qui annoncent une IP à la
+        place de sa vraie MAC. Une MAC qui annonce plusieurs IP n'est pas suspecte en soi (dans une
+        capture générée, plusieurs machines partagent une MAC)
         """
         spoofed_ips_by_mac = defaultdict(set)
         for ip, macs in self.arp_macs_by_ip.items():
-            for mac, arrival_rank in macs.items():
-                if arrival_rank > 0:
+            if len(macs) < 2:
+                continue
+            owner = self.find_ip_owner(ip)
+            for mac in macs:
+                if mac != owner:
                     spoofed_ips_by_mac[mac].add(ip)
         return spoofed_ips_by_mac
+
+    def count_unsolicited_replies(self, mac: str, ips: set[str]) -> int:
+        """
+        Retourne le nombre de réponses ARP non sollicitées d'une MAC pour des IP
+        """
+        return sum(self.unsolicited_arp_replies[ip][mac] for ip in ips)
 
     def get_arp_spoofing_attacks(self) -> list[Attack]:
         """
@@ -216,7 +254,10 @@ class TrafficAnalyzer:
                 protocol="ARP",
                 attacker_ip=self.ip_by_mac.get(mac, UNKNOWN),
                 attacker_mac=mac,
-                details=f"se fait passer pour {', '.join(sorted(spoofed_ips))}",
+                details=(
+                    f"se fait passer pour {', '.join(sorted(spoofed_ips))} "
+                    f"({self.count_unsolicited_replies(mac, spoofed_ips)} réponse(s) ARP non sollicitée(s))"
+                ),
             )
             for mac, spoofed_ips in self.find_arp_spoofers().items()
         ]

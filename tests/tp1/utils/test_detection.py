@@ -17,6 +17,15 @@ def arp_reply(ip: str, mac: str) -> Ether:
     return Ether(src=mac) / ARP(op=2, psrc=ip, hwsrc=mac)
 
 
+def arp_request(asked_ip: str) -> Ether:
+    """
+    Demande ARP "qui a asked_ip ?" envoyée par la victime
+    """
+    return Ether(src=VICTIM_MAC, dst="ff:ff:ff:ff:ff:ff") / ARP(
+        op=1, psrc=VICTIM_IP, hwsrc=VICTIM_MAC, pdst=asked_ip
+    )
+
+
 def test_given_legit_arp_traffic_when_detect_attacks_then_nothing_is_found():
     # Given
     packets = [arp_reply(GATEWAY_IP, GATEWAY_MAC), arp_reply(VICTIM_IP, VICTIM_MAC)]
@@ -41,12 +50,54 @@ def test_given_mac_claiming_gateway_and_victim_when_detect_arp_spoofing_then_att
     attack = result[0]
     assert (attack.attack_type, attack.protocol, attack.attacker_mac) == ("arp_spoofing", "ARP", ATTACKER_MAC)
     assert attack.get_attacker() == ATTACKER_MAC
-    assert attack.details == f"se fait passer pour {GATEWAY_IP}, {VICTIM_IP}"
+    assert (
+        attack.details
+        == f"se fait passer pour {GATEWAY_IP}, {VICTIM_IP} (6 réponse(s) ARP non sollicitée(s))"
+    )
 
 
 def test_given_gateway_ip_claimed_again_by_other_mac_when_detect_arp_spoofing_then_other_mac_is_accused():
     # Given
     packets = [arp_reply(GATEWAY_IP, GATEWAY_MAC)] + [arp_reply(GATEWAY_IP, ATTACKER_MAC)] * 3
+
+    # When
+    result = analyse_packets(packets).get_arp_spoofing_attacks()
+
+    # Then
+    assert [attack.attacker_mac for attack in result] == [ATTACKER_MAC]
+
+
+def test_given_spoofer_seen_before_the_requested_answer_when_detect_arp_spoofing_then_spoofer_is_accused():
+    # Given
+    spoofed_replies = [arp_reply(GATEWAY_IP, ATTACKER_MAC)] * 3
+    real_exchange = [arp_request(GATEWAY_IP), arp_reply(GATEWAY_IP, GATEWAY_MAC)]
+
+    # When
+    result = analyse_packets(spoofed_replies + real_exchange).get_arp_spoofing_attacks()
+
+    # Then
+    assert [attack.attacker_mac for attack in result] == [ATTACKER_MAC]
+
+
+def test_given_reply_to_a_request_when_analyse_then_it_is_not_unsolicited():
+    # Given
+    packets = [
+        arp_request(GATEWAY_IP),
+        arp_reply(GATEWAY_IP, GATEWAY_MAC),
+        arp_reply(GATEWAY_IP, GATEWAY_MAC),
+    ]
+
+    # When
+    analyzer = analyse_packets(packets)
+
+    # Then
+    assert analyzer.unsolicited_arp_replies[GATEWAY_IP] == {GATEWAY_MAC: 1}
+    assert analyzer.arp_requests_waiting[GATEWAY_IP] == 0
+
+
+def test_given_as_many_unsolicited_replies_when_detect_arp_spoofing_then_the_newcomer_is_accused():
+    # Given
+    packets = [arp_reply(GATEWAY_IP, GATEWAY_MAC), arp_reply(GATEWAY_IP, ATTACKER_MAC)]
 
     # When
     result = analyse_packets(packets).get_arp_spoofing_attacks()
@@ -70,7 +121,7 @@ def test_given_attacker_ip_traffic_when_detect_arp_spoofing_then_its_real_ip_is_
 
     # Then
     assert result[0].attacker_ip == ATTACKER_IP
-    assert result[0].details == f"se fait passer pour {GATEWAY_IP}"
+    assert result[0].details == f"se fait passer pour {GATEWAY_IP} (1 réponse(s) ARP non sollicitée(s))"
 
 
 def test_given_arp_probes_without_ip_when_detect_arp_spoofing_then_they_are_ignored():
@@ -269,7 +320,12 @@ def test_given_malformed_arp_packet_when_detect_attacks_then_it_is_ignored_witho
 
 def test_given_real_owner_announcing_often_when_detect_arp_spoofing_then_newcomer_is_accused():
     # Given
-    packets = [arp_reply(GATEWAY_IP, GATEWAY_MAC)] * 10 + [arp_reply(GATEWAY_IP, ATTACKER_MAC)]
+    # une passerelle chargée annonce son IP dans ses propres demandes et dans ses réponses aux demandes
+    gateway_requests = [
+        Ether(src=GATEWAY_MAC) / ARP(op=1, psrc=GATEWAY_IP, hwsrc=GATEWAY_MAC, pdst=VICTIM_IP)
+    ] * 5
+    answered_requests = [arp_request(GATEWAY_IP), arp_reply(GATEWAY_IP, GATEWAY_MAC)] * 5
+    packets = gateway_requests + answered_requests + [arp_reply(GATEWAY_IP, ATTACKER_MAC)]
 
     # When
     result = analyse_packets(packets).get_arp_spoofing_attacks()
