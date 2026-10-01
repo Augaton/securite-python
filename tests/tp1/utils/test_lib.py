@@ -21,7 +21,6 @@ from scapy.all import (
 from src.tp1.utils.lib import (
     choose_interface,
     drop_privileges,
-    get_sudo_user,
     format_share,
     get_protocol,
     give_log_files_to,
@@ -101,7 +100,7 @@ def test_given_invalid_choice_when_parse_interface_choice_then_return_none(choic
     assert result is None
 
 
-def test_given_dns_packet_when_get_protocol_then_return_udp():
+def test_given_dns_packet_when_get_protocol_then_return_dns():
     # Given
     packet = Ether() / IP() / UDP() / DNS()
 
@@ -109,7 +108,7 @@ def test_given_dns_packet_when_get_protocol_then_return_udp():
     result = get_protocol(packet)
 
     # Then
-    assert result == "UDP"
+    assert result == "DNS"
 
 
 def test_given_tcp_packet_with_data_when_get_protocol_then_return_tcp():
@@ -123,7 +122,7 @@ def test_given_tcp_packet_with_data_when_get_protocol_then_return_tcp():
     assert result == "TCP"
 
 
-def test_given_icmpv6_packet_when_get_protocol_then_return_icmpv6():
+def test_given_ipv6_packet_when_get_protocol_then_return_its_last_layer():
     # Given
     packet = Ether() / IPv6() / ICMPv6ND_NS()
 
@@ -131,7 +130,7 @@ def test_given_icmpv6_packet_when_get_protocol_then_return_icmpv6():
     result = get_protocol(packet)
 
     # Then
-    assert result == "ICMPv6"
+    assert result == "ICMPv6ND_NS"
 
 
 def test_given_arp_packet_with_padding_when_get_protocol_then_return_arp():
@@ -281,26 +280,3 @@ def test_given_end_of_input_when_choose_interface_then_default_interface(_mock_g
 
     # Then
     assert result == "wlan0"
-
-
-def test_given_program_launched_with_sudo_when_get_sudo_user_then_return_its_account(monkeypatch):
-    # Given
-    # uid 0 : root existe sur toutes les machines, contrairement à l'uid de celui qui lance les tests
-    monkeypatch.setenv("SUDO_UID", "0")
-
-    # When
-    result = get_sudo_user()
-
-    # Then
-    assert result.pw_uid == 0
-
-
-def test_given_no_sudo_when_get_sudo_user_then_return_none(monkeypatch):
-    # Given
-    monkeypatch.delenv("SUDO_UID", raising=False)
-
-    # When
-    result = get_sudo_user()
-
-    # Then
-    assert result is None

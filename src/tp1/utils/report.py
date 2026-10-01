@@ -210,6 +210,6 @@ class Report:
         Generate graph and array
         """
         if param == "graph":
-            self.graph = save_graph(self.capture.protocols, Path(self.filename).parent)
+            self.graph = save_graph(self.capture.protocols)
         elif param == "array":
             self.array = list(self.capture.protocols.items())

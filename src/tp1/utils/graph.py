@@ -1,5 +1,3 @@
-from pathlib import Path
-
 import pygal
 from pygal.style import Style
 
@@ -54,15 +52,13 @@ def create_graph(protocols: dict) -> pygal.HorizontalBar:
     return graph
 
 
-def save_graph(protocols: dict, directory: Path = Path()) -> str:
+def save_graph(protocols: dict) -> str:
     """
     Enregistre le graphique pygal en SVG, à ouvrir dans le navigateur (l'interface graphique)
 
     :param protocols: {protocole: nombre de paquets}
-    :param directory: dossier où écrire le graphique
     :return: chemin du fichier SVG
     """
-    svg_path = str(directory / GRAPH_SVG)
-    create_graph(protocols).render_to_file(svg_path)
-    logger.info(f"Graphique enregistré dans {svg_path}")
-    return svg_path
+    create_graph(protocols).render_to_file(GRAPH_SVG)
+    logger.info(f"Graphique enregistré dans {GRAPH_SVG}")
+    return GRAPH_SVG

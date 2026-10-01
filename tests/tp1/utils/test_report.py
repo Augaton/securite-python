@@ -185,7 +185,7 @@ def test_given_no_attack_when_concat_report_then_everything_is_fine():
 def test_given_non_latin1_text_from_attacker_when_concat_report_then_pdf_is_still_created():
     # Given
     attack = Attack(
-        "injection_sql",
+        "sql_injection",
         "Injection SQL",
         "TCP",
         "10.0.0.66",
@@ -203,7 +203,7 @@ def test_given_non_latin1_text_from_attacker_when_concat_report_then_pdf_is_stil
 
 def test_when_save_json_then_file_has_the_format_expected_by_the_grader(tmp_path):
     # Given
-    scan = Attack("scan_syn", "Scan SYN", "TCP", "192.168.1.66", "aa:bb:cc:dd:ee:ff", "20 ports visés")
+    scan = Attack("syn_scan", "Scan SYN", "TCP", "192.168.1.66", "aa:bb:cc:dd:ee:ff", "20 ports visés")
     report = Report(make_capture([ARP_ATTACK, scan], flag="ESGI{abc}"), "test.pdf", "Test summary")
     filename = tmp_path / "report.json"
 
@@ -215,7 +215,7 @@ def test_when_save_json_then_file_has_the_format_expected_by_the_grader(tmp_path
         "protocols": {"ARP": 3, "TCP": 1},
         "attacks": [
             {"type": "arp_spoofing", "attacker": "aa:bb:cc:dd:ee:ff"},
-            {"type": "scan_syn", "attacker": "192.168.1.66"},
+            {"type": "syn_scan", "attacker": "192.168.1.66"},
         ],
         "flag": "ESGI{abc}",
     }
@@ -253,10 +253,7 @@ def test_when_importing_the_tool_then_cairo_is_not_needed(tmp_path):
     # Given
     # le bac à sable de correction n'a pas la bibliothèque système cairo : on interdit son import
     code = "import sys; sys.modules['cairosvg'] = sys.modules['cairocffi'] = None; import src.tp1.main"
-    python_path = os.pathsep.join(
-        [str(Path(__file__).resolve().parents[3]), os.environ.get("PYTHONPATH", "")]
-    )
-    environment = {**os.environ, "PYTHONPATH": python_path}
+    environment = {**os.environ, "PYTHONPATH": str(Path(__file__).resolve().parents[3])}
 
     # When
     # depuis un dossier temporaire : l'import crée app.log dans le dossier courant

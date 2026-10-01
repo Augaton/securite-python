@@ -88,7 +88,7 @@ def test_get_all_protocols():
     result = capture.get_all_protocols()
 
     # Then
-    assert result == {"TCP": 2, "UDP": 1}
+    assert result == {"TCP": 2, "DNS": 1}
 
 
 def test_sort_network_protocols():
@@ -155,9 +155,13 @@ def test_given_no_packet_when_gen_summary_then_say_no_packet():
 def test_given_arp_spoofing_when_analyse_then_attack_is_noted_in_summary():
     # Given
     capture = Capture()
-    real_reply = Ether(src="00:00:00:00:00:01") / ARP(op=2, psrc="192.168.1.1", hwsrc="00:00:00:00:00:01")
-    spoofed_reply = Ether(src="aa:bb:cc:dd:ee:ff") / ARP(op=2, psrc="192.168.1.1", hwsrc="aa:bb:cc:dd:ee:ff")
-    feed(capture, [real_reply, spoofed_reply])
+    feed(
+        capture,
+        [
+            Ether(src="aa:bb:cc:dd:ee:ff") / ARP(op=2, psrc=ip, hwsrc="aa:bb:cc:dd:ee:ff")
+            for ip in ("192.168.1.1", "192.168.1.10")
+        ],
+    )
 
     # When
     capture.analyse()

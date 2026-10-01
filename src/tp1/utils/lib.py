@@ -3,13 +3,23 @@ import os
 import pwd
 import sys
 
-from scapy.all import ARP, ICMP, TCP, UDP, Packet, conf, get_if_list
+from scapy.all import (
+    ICMPerror,
+    IPerror,
+    IPerror6,
+    Packet,
+    Padding,
+    Raw,
+    TCPerror,
+    UDPerror,
+    conf,
+    get_if_list,
+)
 
 from src.tp1.utils.config import logger
 
-# comptés par protocole de transport comme l'exemple de la consigne ({"TCP": 128, "ARP": 12}) :
-# un paquet DNS compte en UDP, une requête HTTP en TCP
-TRANSPORT_PROTOCOLS = (ARP, TCP, UDP, ICMP)
+# données brutes, et en-têtes du paquet d'origine recopiés dans une erreur ICMP (qui reste un paquet ICMP)
+PAYLOAD_LAYERS = (Raw, Padding, IPerror, IPerror6, TCPerror, UDPerror, ICMPerror)
 
 
 def hello_world() -> str:
@@ -72,17 +82,15 @@ def choose_interface() -> str:
 
 def get_protocol(packet: Packet) -> str:
     """
-    Retourne le protocole de transport d'un paquet (Ether / IP / UDP / DNS -> "UDP")
+    Retourne le protocole le plus précis d'un paquet (Ether / IP / UDP / DNS -> "DNS")
 
     :param packet: paquet capturé avec scapy
-    :return: nom du protocole, "ICMPv6" ou "Autre" pour les paquets sans ARP, TCP, UDP ni ICMP
+    :return: nom du protocole, "Autre" si le paquet ne contient que des données brutes
     """
-    for protocol in TRANSPORT_PROTOCOLS:
-        if packet.haslayer(protocol):
-            return protocol.__name__
-    if any(layer.__name__.startswith("ICMPv6") for layer in packet.layers()):
-        return "ICMPv6"
-    return "Autre"
+    protocol_layers = [layer for layer in packet.layers() if layer not in PAYLOAD_LAYERS]
+    if not protocol_layers:
+        return "Autre"
+    return protocol_layers[-1].__name__
 
 
 def format_share(count: int, total: int) -> str:
