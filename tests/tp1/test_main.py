@@ -27,14 +27,16 @@ def test_when_main_then_report_is_saved(mock_capture, mock_report):
 
 @patch("src.tp1.main.Report")
 @patch("src.tp1.main.Capture")
-def test_given_no_root_when_main_then_no_report_and_sudo_command_is_given(mock_capture, mock_report, caplog):
+def test_given_no_root_when_main_then_exit_with_error_and_sudo_command(mock_capture, mock_report, caplog):
     # Given
     mock_capture.return_value.open_socket.side_effect = PermissionError
 
     # When
-    main([])
+    with pytest.raises(SystemExit) as exit_info:
+        main([])
 
     # Then
+    assert exit_info.value.code == 1
     mock_capture.return_value.capture_traffic.assert_not_called()
     mock_capture.return_value.analyse.assert_not_called()
     mock_report.assert_not_called()
