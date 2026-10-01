@@ -45,6 +45,16 @@ class Attack:
         """
         return self.attacker_mac if self.protocol == "ARP" else self.attacker_ip
 
+    def get_block_rule(self) -> str:
+        """
+        Propose une règle de pare-feu qui bloque l'attaquant, sans l'appliquer : par MAC pour l'ARP qui ne
+        passe pas par IP, par IP sinon (la MAC d'un paquet IP peut être celle du routeur)
+        """
+        if self.protocol == "ARP":
+            return f"arptables -A INPUT --source-mac {self.attacker_mac} -j DROP"
+        firewall = "ip6tables" if ":" in self.attacker_ip else "iptables"
+        return f"{firewall} -A INPUT -s {self.attacker_ip} -j DROP"
+
     def describe(self) -> str:
         """
         Décrit l'attaque en une ligne

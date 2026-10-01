@@ -81,8 +81,11 @@ Les logs sont aussi écrits dans `app.log`.
   pas dans n'importe quel paquet : le pcap du correcteur contient aussi un faux marqueur ailleurs
 
 Dans le pdf chaque protocole est marqué légitime ou illégitime, et chaque attaque est notée avec son
-protocole et l'IP / la MAC de l'attaquant (sinon ça dit que tout va bien). Le blocage de l'attaquant
-(facultatif dans la consigne) est pas fait : une fausse alerte pourrait couper la passerelle.
+protocole et l'IP / la MAC de l'attaquant (sinon ça dit que tout va bien). Pour le blocage (facultatif
+dans la consigne), une règle de pare-feu est proposée pour chaque attaquant dans les logs et le pdf,
+mais pas appliquée : une fausse alerte pourrait couper la passerelle. C'est `arptables` sur la MAC pour
+l'ARP spoofing, `iptables` (ou `ip6tables`) sur l'IP pour le reste, pas sur la MAC qui peut être celle
+du routeur.
 
 Le `report.json` a le format demandé, avec la MAC de l'attaquant pour l'ARP spoofing et son IP pour le
 scan et l'injection :

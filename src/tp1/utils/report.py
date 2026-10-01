@@ -142,6 +142,18 @@ class Report:
                 )
                 table.row(tuple(to_pdf_text(cell) for cell in cells))
 
+    @staticmethod
+    def add_block_rules(pdf: FPDF, attacks: list) -> None:
+        """
+        Ajoute les règles de pare-feu proposées pour bloquer les attaquants (elles ne sont pas appliquées)
+        """
+        pdf.ln(3)
+        pdf.multi_cell(0, 6, "Blocage proposé (à appliquer à la main) :", new_x="LMARGIN", new_y="NEXT")
+        pdf.set_font("Courier", size=9)
+        for rule in dict.fromkeys(attack.get_block_rule() for attack in attacks):
+            pdf.multi_cell(0, 5, to_pdf_text(rule), new_x="LMARGIN", new_y="NEXT")
+        pdf.set_font(FONT, size=11)
+
     def add_attacks(self, pdf: FPDF) -> None:
         """
         Ajoute les tentatives d'attaque (ou indique que tout va bien) et le marqueur trouvé
@@ -151,6 +163,7 @@ class Report:
             pdf.multi_cell(0, 6, "Aucune attaque détectée : tout va bien.", new_x="LMARGIN", new_y="NEXT")
         else:
             self.add_attacks_table(pdf, attacks)
+            self.add_block_rules(pdf, attacks)
         if self.capture.flag is not None:
             pdf.ln(3)
             pdf.multi_cell(

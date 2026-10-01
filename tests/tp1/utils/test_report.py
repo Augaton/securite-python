@@ -176,6 +176,7 @@ def test_given_attack_when_concat_report_then_traffic_is_illegitimate_and_attack
         "aa:bb:cc:dd:ee:ff",
         "192.168.1.66",
         "Marqueur trouvé : ESGI{abc}",
+        "arptables -A INPUT --source-mac aa:bb:cc:dd:ee:ff -j DROP",
     ):
         assert text.encode("latin-1") in content
 

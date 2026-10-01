@@ -110,6 +110,7 @@ class Capture:
         self.attacks = self.analyzer.get_attacks()
         for attack in self.attacks:
             logger.warning(f"Tentative d'attaque : {attack.describe()}")
+            logger.info(f"Blocage proposé : {attack.get_block_rule()}")
         if not self.attacks:
             logger.info("Aucune attaque détectée, tout va bien")
 

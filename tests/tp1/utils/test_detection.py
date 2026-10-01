@@ -3,7 +3,7 @@ import time
 import pytest
 from scapy.all import ARP, ICMP, IP, TCP, Ether, Raw
 
-from src.tp1.utils.detection import analyse_packets
+from src.tp1.utils.detection import Attack, analyse_packets
 
 GATEWAY_IP, GATEWAY_MAC = "192.168.1.1", "00:00:00:00:00:01"
 VICTIM_IP, VICTIM_MAC = "192.168.1.10", "00:00:00:00:00:10"
@@ -122,6 +122,25 @@ def test_given_attacker_ip_traffic_when_detect_arp_spoofing_then_its_real_ip_is_
     # Then
     assert result[0].attacker_ip == ATTACKER_IP
     assert result[0].details == f"se fait passer pour {GATEWAY_IP} (1 réponse(s) ARP non sollicitée(s))"
+
+
+@pytest.mark.parametrize(
+    "protocol, attacker_ip, expected_rule",
+    [
+        ("ARP", "inconnue", f"arptables -A INPUT --source-mac {ATTACKER_MAC} -j DROP"),
+        ("TCP", ATTACKER_IP, f"iptables -A INPUT -s {ATTACKER_IP} -j DROP"),
+        ("HTTP", "fe80::66", "ip6tables -A INPUT -s fe80::66 -j DROP"),
+    ],
+)
+def test_given_attack_when_get_block_rule_then_attacker_is_dropped(protocol, attacker_ip, expected_rule):
+    # Given
+    attack = Attack("test", "Test", protocol, attacker_ip, ATTACKER_MAC, "")
+
+    # When
+    result = attack.get_block_rule()
+
+    # Then
+    assert result == expected_rule
 
 
 def test_given_arp_probes_without_ip_when_detect_arp_spoofing_then_they_are_ignored():
