@@ -101,7 +101,7 @@ def test_given_syn_to_many_ports_when_detect_syn_scan_then_scanner_is_found():
     # Then
     assert len(result) == 1
     attack = result[0]
-    assert (attack.attack_type, attack.protocol, attack.attacker_ip) == ("syn_scan", "TCP", ATTACKER_IP)
+    assert (attack.attack_type, attack.protocol, attack.attacker_ip) == ("port_scan", "TCP", ATTACKER_IP)
     assert attack.get_attacker() == ATTACKER_IP
     assert attack.attacker_mac == ATTACKER_MAC
     assert attack.details == f"20 ports visés sur {VICTIM_IP}"

@@ -70,7 +70,8 @@ Les logs sont aussi écrits dans `app.log`.
 - **ARP spoofing** : une MAC qui annonce une IP déjà annoncée par une autre MAC (comme arpwatch : la
   première MAC vue pour une IP est la vraie, les suivantes l'usurpent). Une MAC qui annonce plusieurs IP
   toute seule n'est pas accusée : dans le pcap du correcteur plein de machines ont la même MAC
-- **scan SYN** : une IP qui envoie des SYN (sans ACK) vers au moins 10 ports différents
+- **scan de ports** (`port_scan` dans `report.json`, comme dans la consigne) : une IP qui envoie des SYN
+  (sans ACK) vers au moins 10 ports différents
 - **injection SQL** : du SQL typique d'une injection (`' OR '1'='1`, `UNION SELECT`, `'--`...) dans une
   requête HTTP. Le HTTPS est chiffré donc on peut pas regarder dedans
 - le **marqueur** `ESGI{...}` est pris dans la requête de l'injection SQL (même encodé dans une URL),
@@ -88,7 +89,7 @@ scan et l'injection :
   "protocols": {"TCP": 105, "ARP": 13, "DNS": 5},
   "attacks": [
     {"type": "arp_spoofing", "attacker": "de:ad:be:ef:00:66"},
-    {"type": "syn_scan", "attacker": "10.10.0.66"},
+    {"type": "port_scan", "attacker": "10.10.0.66"},
     {"type": "sql_injection", "attacker": "10.10.0.66"}
   ],
   "flag": "ESGI{...}"

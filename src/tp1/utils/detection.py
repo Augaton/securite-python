@@ -228,7 +228,7 @@ class TrafficAnalyzer:
         """
         return [
             Attack(
-                attack_type="syn_scan",
+                attack_type="port_scan",
                 name="Scan SYN",
                 protocol="TCP",
                 attacker_ip=ip,
