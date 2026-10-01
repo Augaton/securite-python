@@ -50,7 +50,7 @@ def test_given_capture_when_capture_traffic_then_packets_are_saved(mock_conf):
         opened_socket=listen_socket, timeout=60, prn=capture.add_packet, store=False
     )
     listen_socket.close.assert_called_once()
-    assert capture.get_all_protocols() == {"TCP": 1, "ARP": 1}
+    assert capture.get_all_protocols() == {"Ethernet": 2, "IP": 1, "TCP": 1, "ARP": 1}
 
 
 @patch("src.tp1.utils.capture.conf")
@@ -88,7 +88,7 @@ def test_get_all_protocols():
     result = capture.get_all_protocols()
 
     # Then
-    assert result == {"TCP": 2, "DNS": 1}
+    assert result == {"Ethernet": 3, "IP": 3, "TCP": 2, "UDP": 1, "DNS": 1}
 
 
 def test_sort_network_protocols():
@@ -100,7 +100,7 @@ def test_sort_network_protocols():
     result = capture.sort_network_protocols()
 
     # Then
-    assert list(result) == ["TCP", "ARP"]
+    assert list(result) == ["Ethernet", "IP", "TCP", "ARP"]
 
 
 def test_analyse():
@@ -112,7 +112,7 @@ def test_analyse():
     capture.analyse()
 
     # Then
-    assert capture.protocols == {"TCP": 2, "UDP": 1}
+    assert capture.protocols == {"Ethernet": 3, "IP": 3, "TCP": 2, "UDP": 1}
     assert capture.summary != ""
 
 
@@ -131,7 +131,8 @@ def test_get_summary():
 def test_gen_summary():
     # Given
     capture = Capture()
-    capture.protocols = {"TCP": 3, "DNS": 1}
+    capture.packet_count = 4
+    capture.protocols = {"Ethernet": 4, "IP": 4, "TCP": 3, "UDP": 1, "DNS": 1}
 
     # When
     result = capture._gen_summary()
@@ -139,6 +140,18 @@ def test_gen_summary():
     # Then
     assert "4 paquets" in result
     assert "TCP avec 3 paquets" in result
+
+
+def test_given_only_ethernet_frames_when_get_most_used_protocol_then_return_ethernet():
+    # Given
+    capture = Capture()
+    capture.protocols = {"Ethernet": 2}
+
+    # When
+    result = capture.get_most_used_protocol()
+
+    # Then
+    assert result == "Ethernet"
 
 
 def test_given_no_packet_when_gen_summary_then_say_no_packet():

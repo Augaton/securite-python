@@ -5,12 +5,11 @@ from urllib.parse import unquote_plus
 
 from scapy.all import ARP, IP, TCP, Ether, IPv6, Packet, Raw
 
-from src.tp1.utils.lib import get_protocol
+from src.tp1.utils.lib import HTTP_METHODS
 
 UNKNOWN = "inconnue"
 ETHERTYPE_IPV4 = 0x0800
 SYN_SCAN_MIN_PORTS = 10
-HTTP_METHODS = (b"GET ", b"POST ", b"PUT ", b"PATCH ", b"DELETE ", b"HEAD ", b"OPTIONS ")
 SQL_INJECTION_PATTERN = re.compile(
     r"""["']\s*(or|and)\s*["']?\w*["']?\s*="""  # ' OR '1'='1, ' AND 1=1, ' or ''='
     r"|\b(or|and)\s+\d+\s*=\s*\d+"  # OR 1=1 (champ numérique, sans guillemet)
@@ -115,7 +114,7 @@ def build_sql_injection(packet: Packet, source_ip: str, request: str) -> Attack:
     return Attack(
         attack_type="sql_injection",
         name="Injection SQL",
-        protocol=get_protocol(packet),
+        protocol="HTTP",
         attacker_ip=source_ip,
         attacker_mac=get_source_mac(packet),
         details=f"requête HTTP vers {get_destination_ip(packet)} : {request_line!r}",

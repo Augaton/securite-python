@@ -86,7 +86,7 @@ scan et l'injection :
 
 ```json
 {
-  "protocols": {"TCP": 105, "ARP": 13, "DNS": 5},
+  "protocols": {"Ethernet": 123, "IP": 110, "TCP": 105, "ARP": 13, "HTTP": 8, "UDP": 5, "DNS": 5},
   "attacks": [
     {"type": "arp_spoofing", "attacker": "de:ad:be:ef:00:66"},
     {"type": "port_scan", "attacker": "10.10.0.66"},
@@ -98,9 +98,13 @@ scan et l'injection :
 
 ### Comment ça marche
 
-Pour trouver le protocole d'un paquet on prend sa couche la plus "haute" en ignorant les données brutes
-(Raw) et le padding : `Ether / IP / UDP / DNS` ça donne DNS, `Ether / IP / TCP / Raw` ça donne TCP.
-Comme ça on voit tous les types de paquets (IPv6, NBNS, LLMNR...) et pas juste une liste fixe.
+Un paquet compte pour chacun de ses protocoles, ceux de la liste de la consigne (Ethernet, ARP, IP,
+TCP, UDP, ICMP, DNS, HTTP, plus IPv6 et ICMPv6) : `Ether / IP / UDP / DNS` compte en Ethernet, IP, UDP
+et DNS. Avant on prenait juste la couche la plus haute (DNS) ou juste le transport (UDP), et dans les
+deux cas le correcteur mettait 2/4 aux protocoles. Scapy ne décode pas le HTTP (il reste en `Raw`) :
+un paquet TCP compte en HTTP si ses données commencent par une méthode (`GET `, `POST `...) ou par
+`HTTP/` pour une réponse. Les en-têtes recopiés dans une erreur ICMP (`IPerror`, `TCPerror`) ne comptent
+pas. Du coup dans le pdf les parts ne font pas 100 % à elles toutes.
 
 Côté sécu :
 

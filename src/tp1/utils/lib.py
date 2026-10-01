@@ -3,23 +3,24 @@ import os
 import pwd
 import sys
 
-from scapy.all import (
-    ICMPerror,
-    IPerror,
-    IPerror6,
-    Packet,
-    Padding,
-    Raw,
-    TCPerror,
-    UDPerror,
-    conf,
-    get_if_list,
-)
+from scapy.all import ARP, DNS, ICMP, IP, TCP, UDP, Ether, IPv6, Packet, Raw, conf, get_if_list
 
 from src.tp1.utils.config import logger
 
-# données brutes, et en-têtes du paquet d'origine recopiés dans une erreur ICMP (qui reste un paquet ICMP)
-PAYLOAD_LAYERS = (Raw, Padding, IPerror, IPerror6, TCPerror, UDPerror, ICMPerror)
+# protocoles comptés, avec les noms de la consigne (Ethernet, ARP, IP, TCP, UDP, ICMP, DNS, HTTP).
+# Classes exactes : les en-têtes recopiés dans une erreur ICMP (IPerror, TCPerror...) ne comptent pas
+PROTOCOL_NAMES = {
+    Ether: "Ethernet",
+    ARP: "ARP",
+    IP: "IP",
+    IPv6: "IPv6",
+    TCP: "TCP",
+    UDP: "UDP",
+    ICMP: "ICMP",
+    DNS: "DNS",
+}
+HTTP_METHODS = (b"GET ", b"POST ", b"PUT ", b"PATCH ", b"DELETE ", b"HEAD ", b"OPTIONS ")
+HTTP_RESPONSE = b"HTTP/"
 
 
 def hello_world() -> str:
@@ -80,17 +81,31 @@ def choose_interface() -> str:
         logger.warning(f"Choix invalide : {choice!r}")
 
 
-def get_protocol(packet: Packet) -> str:
+def is_http(packet: Packet) -> bool:
     """
-    Retourne le protocole le plus précis d'un paquet (Ether / IP / UDP / DNS -> "DNS")
+    Vérifie qu'un paquet TCP porte une requête ou une réponse HTTP en clair (scapy ne décode pas le HTTP)
+    """
+    if not packet.haslayer(TCP) or not packet.haslayer(Raw):
+        return False
+    return bytes(packet[Raw].load).startswith((*HTTP_METHODS, HTTP_RESPONSE))
+
+
+def get_protocols(packet: Packet) -> list[str]:
+    """
+    Retourne tous les protocoles d'un paquet, du plus bas au plus haut
+    (Ether / IP / UDP / DNS -> Ethernet, IP, UDP, DNS)
 
     :param packet: paquet capturé avec scapy
-    :return: nom du protocole, "Autre" si le paquet ne contient que des données brutes
+    :return: noms des protocoles, ["Autre"] si aucun n'est connu
     """
-    protocol_layers = [layer for layer in packet.layers() if layer not in PAYLOAD_LAYERS]
-    if not protocol_layers:
-        return "Autre"
-    return protocol_layers[-1].__name__
+    layers = packet.layers()
+    protocols = [PROTOCOL_NAMES[layer] for layer in layers if layer in PROTOCOL_NAMES]
+    if any(layer.__name__.startswith("ICMPv6") for layer in layers):
+        protocols.append("ICMPv6")
+    if is_http(packet):
+        protocols.append("HTTP")
+    # un protocole compte une fois par paquet, même s'il y est deux fois (tunnel IP dans IP)
+    return list(dict.fromkeys(protocols)) or ["Autre"]
 
 
 def format_share(count: int, total: int) -> str:

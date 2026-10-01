@@ -88,9 +88,10 @@ class Report:
 
     def add_array(self, pdf: FPDF) -> None:
         """
-        Ajoute le tableau des paquets par protocole, avec leur part, leur légitimité et le total
+        Ajoute le tableau des paquets par protocole, avec leur part, leur légitimité et le total. Un paquet
+        compte pour chacun de ses protocoles : les parts ne font pas 100 % à elles toutes
         """
-        total = sum(count for _, count in self.array)
+        total = self.capture.get_packet_count()
         with pdf.table(
             col_widths=(3, 1.6, 1.8, 3.6),
             text_align=("LEFT", "RIGHT", "RIGHT", "LEFT"),
@@ -101,7 +102,13 @@ class Report:
             table.row(("Protocole", "Paquets", "Part du trafic", "Trafic"))
             for protocol, count in self.array:
                 table.row((protocol, str(count), format_share(count, total), self.get_legitimacy(protocol)))
-            table.row(("Total", str(total), format_share(total, total), ""))
+            table.row(("Total des paquets", str(total), format_share(total, total), ""))
+        pdf.set_font(FONT, size=9)
+        pdf.set_text_color(*GREY_TEXT)
+        note = "Un paquet compte dans chacun de ses protocoles (une requête HTTP compte aussi en TCP et IP)"
+        pdf.multi_cell(0, 5, to_pdf_text(note), new_x="LMARGIN", new_y="NEXT")
+        pdf.set_text_color(0)
+        pdf.set_font(FONT, size=11)
 
     def get_legitimacy(self, protocol: str) -> str:
         """

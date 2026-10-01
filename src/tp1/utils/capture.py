@@ -4,9 +4,11 @@ from scapy.all import Packet, conf, sniff
 
 from src.tp1.utils.config import logger
 from src.tp1.utils.detection import TrafficAnalyzer
-from src.tp1.utils.lib import choose_interface, get_protocol
+from src.tp1.utils.lib import choose_interface, get_protocols
 
 TIMEOUT = 60
+# portent presque tous les paquets : pas intéressants pour dire quel protocole est le plus utilisé
+CARRIER_PROTOCOLS = ("Ethernet", "IP", "IPv6")
 
 
 class Capture:
@@ -15,6 +17,7 @@ class Capture:
         self.timeout = timeout
         self.interface = choose_interface() if pcap_file is None else ""
         self.listen_socket = None
+        self.packet_count = 0
         self.protocol_counts = Counter()
         self.analyzer = TrafficAnalyzer()
         self.protocols = {}
@@ -52,16 +55,18 @@ class Capture:
 
     def add_packet(self, packet: Packet) -> None:
         """
-        Compte et analyse un paquet dès qu'il arrive, sans le garder en mémoire
+        Compte et analyse un paquet dès qu'il arrive, sans le garder en mémoire. Il compte pour chacun
+        de ses protocoles : une requête HTTP compte en Ethernet, IP, TCP et HTTP
         """
-        self.protocol_counts[get_protocol(packet)] += 1
+        self.packet_count += 1
+        self.protocol_counts.update(get_protocols(packet))
         self.analyzer.add_packet(packet)
 
     def get_packet_count(self) -> int:
         """
         Retourne le nombre de paquets capturés
         """
-        return sum(self.protocol_counts.values())
+        return self.packet_count
 
     def get_source(self) -> str:
         """
@@ -81,6 +86,13 @@ class Capture:
         Return all protocols captured with total packets number
         """
         return dict(self.protocol_counts)
+
+    def get_most_used_protocol(self) -> str:
+        """
+        Retourne le protocole le plus utilisé, sans compter Ethernet et IP qui transportent les autres
+        """
+        upper_protocols = [protocol for protocol in self.protocols if protocol not in CARRIER_PROTOCOLS]
+        return next(iter(upper_protocols or self.protocols))
 
     def analyse(self) -> None:
         """
@@ -118,11 +130,11 @@ class Capture:
         """
         Generate summary
         """
-        total = sum(self.protocols.values())
+        total = self.get_packet_count()
         if total == 0:
             return f"Aucun paquet capturé ({self.get_source()})."
 
-        most_used = next(iter(self.protocols))
+        most_used = self.get_most_used_protocol()
         summary = (
             f"{total} paquets ont été analysés ({self.get_source()}). "
             f"Le protocole le plus utilisé est {most_used} avec {self.protocols[most_used]} paquets. "

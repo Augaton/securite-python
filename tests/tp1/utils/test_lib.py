@@ -22,9 +22,10 @@ from src.tp1.utils.lib import (
     choose_interface,
     drop_privileges,
     format_share,
-    get_protocol,
+    get_protocols,
     give_log_files_to,
     hello_world,
+    is_http,
     parse_interface_choice,
 )
 
@@ -100,70 +101,112 @@ def test_given_invalid_choice_when_parse_interface_choice_then_return_none(choic
     assert result is None
 
 
-def test_given_dns_packet_when_get_protocol_then_return_dns():
+def test_given_dns_packet_when_get_protocols_then_return_every_layer():
     # Given
     packet = Ether() / IP() / UDP() / DNS()
 
     # When
-    result = get_protocol(packet)
+    result = get_protocols(packet)
 
     # Then
-    assert result == "DNS"
+    assert result == ["Ethernet", "IP", "UDP", "DNS"]
 
 
-def test_given_tcp_packet_with_data_when_get_protocol_then_return_tcp():
+def test_given_tcp_packet_with_data_when_get_protocols_then_data_is_not_a_protocol():
     # Given
     packet = Ether() / IP() / TCP() / Raw(b"hello")
 
     # When
-    result = get_protocol(packet)
+    result = get_protocols(packet)
 
     # Then
-    assert result == "TCP"
+    assert result == ["Ethernet", "IP", "TCP"]
 
 
-def test_given_ipv6_packet_when_get_protocol_then_return_its_last_layer():
+@pytest.mark.parametrize(
+    "payload",
+    [b"GET /login.php?user=admin HTTP/1.1\r\n\r\n", b"POST / HTTP/1.1\r\n\r\n", b"HTTP/1.1 200 OK\r\n\r\n"],
+)
+def test_given_http_request_or_response_when_get_protocols_then_http_is_counted(payload):
+    # Given
+    packet = Ether() / IP() / TCP(dport=80) / Raw(payload)
+
+    # When
+    result = get_protocols(packet)
+
+    # Then
+    assert result == ["Ethernet", "IP", "TCP", "HTTP"]
+
+
+def test_given_ipv6_packet_when_get_protocols_then_return_ipv6_and_icmpv6():
     # Given
     packet = Ether() / IPv6() / ICMPv6ND_NS()
 
     # When
-    result = get_protocol(packet)
+    result = get_protocols(packet)
 
     # Then
-    assert result == "ICMPv6ND_NS"
+    assert result == ["Ethernet", "IPv6", "ICMPv6"]
 
 
-def test_given_arp_packet_with_padding_when_get_protocol_then_return_arp():
+def test_given_arp_packet_with_padding_when_get_protocols_then_return_ethernet_and_arp():
     # Given
     packet = Ether() / ARP() / Padding(b"\x00" * 18)
 
     # When
-    result = get_protocol(packet)
+    result = get_protocols(packet)
 
     # Then
-    assert result == "ARP"
+    assert result == ["Ethernet", "ARP"]
 
 
-def test_given_icmp_port_unreachable_when_get_protocol_then_return_icmp():
+def test_given_icmp_port_unreachable_when_get_protocols_then_copied_headers_are_not_counted():
     # Given
     packet = Ether() / IP() / ICMP(type=3, code=3) / IPerror() / UDPerror()
 
     # When
-    result = get_protocol(packet)
+    result = get_protocols(packet)
 
     # Then
-    assert result == "ICMP"
+    assert result == ["Ethernet", "IP", "ICMP"]
 
 
-def test_given_raw_data_only_when_get_protocol_then_return_autre():
+def test_given_ip_in_ip_when_get_protocols_then_ip_is_counted_once():
+    # Given
+    packet = Ether() / IP() / IP() / TCP()
+
+    # When
+    result = get_protocols(packet)
+
+    # Then
+    assert result == ["Ethernet", "IP", "TCP"]
+
+
+def test_given_raw_data_only_when_get_protocols_then_return_autre():
     # Given
     packet = Raw(b"donnees")
 
     # When
-    result = get_protocol(packet)
+    result = get_protocols(packet)
 
     # Then
-    assert result == "Autre"
+    assert result == ["Autre"]
+
+
+@pytest.mark.parametrize(
+    "packet",
+    [
+        Ether() / IP() / TCP(dport=80),
+        Ether() / IP() / TCP(dport=80) / Raw(b"\x16\x03\x01\x02\x00"),
+        Ether() / IP() / UDP() / Raw(b"GET / HTTP/1.1\r\n\r\n"),
+    ],
+)
+def test_given_no_http_over_tcp_when_is_http_then_false(packet):
+    # When
+    result = is_http(packet)
+
+    # Then
+    assert result is False
 
 
 @pytest.mark.parametrize(

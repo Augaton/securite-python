@@ -168,7 +168,7 @@ def test_given_injection_in_http_request_when_detect_sql_injection_then_attacker
     attack = result[0]
     assert (attack.attack_type, attack.protocol, attack.get_attacker()) == (
         "sql_injection",
-        "TCP",
+        "HTTP",
         ATTACKER_IP,
     )
     assert attack.attacker_mac == ATTACKER_MAC

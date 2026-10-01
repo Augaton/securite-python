@@ -10,6 +10,15 @@ from src.tp1.utils.graph import save_graph
 from src.tp1.utils.report import Report
 
 
+def make_tcp_dns_capture() -> MagicMock:
+    """
+    Capture de test de 4 paquets (3 TCP et 1 DNS)
+    """
+    capture = MagicMock()
+    capture.get_packet_count.return_value = 4
+    return capture
+
+
 def test_report_init():
     # Given
     capture = MagicMock()
@@ -30,7 +39,7 @@ def test_report_init():
 
 def test_concat_report():
     # Given
-    report = Report(MagicMock(), "test.pdf", "Test summary")
+    report = Report(make_tcp_dns_capture(), "test.pdf", "Test summary")
     report.array = [("TCP", 3), ("DNS", 1)]
 
     # When
@@ -42,7 +51,7 @@ def test_concat_report():
 
 def test_save(tmp_path):
     # Given
-    report = Report(MagicMock(), "test.pdf", "Test summary")
+    report = Report(make_tcp_dns_capture(), "test.pdf", "Test summary")
     report.array = [("TCP", 3)]
     filename = tmp_path / "test.pdf"
 
@@ -56,7 +65,7 @@ def test_save(tmp_path):
 def test_given_graph_when_save_then_pdf_is_created(tmp_path, monkeypatch):
     # Given
     monkeypatch.chdir(tmp_path)
-    report = Report(MagicMock(), "test.pdf", "Test summary")
+    report = Report(make_tcp_dns_capture(), "test.pdf", "Test summary")
     report.array = [("TCP", 3), ("DNS", 1)]
     report.graph = save_graph({"TCP": 3, "DNS": 1})
 
@@ -69,7 +78,7 @@ def test_given_graph_when_save_then_pdf_is_created(tmp_path, monkeypatch):
 
 def test_generate_graph():
     # Given
-    report = Report(MagicMock(), "test.pdf", "Test summary")
+    report = Report(make_tcp_dns_capture(), "test.pdf", "Test summary")
 
     # When
     with patch("src.tp1.utils.report.save_graph", return_value="graph.svg"):
@@ -94,7 +103,7 @@ def test_generate_array():
 
 def test_generate_invalid_param():
     # Given
-    report = Report(MagicMock(), "test.pdf", "Test summary")
+    report = Report(make_tcp_dns_capture(), "test.pdf", "Test summary")
 
     # When
     report.generate("invalid")
@@ -106,7 +115,7 @@ def test_generate_invalid_param():
 
 def test_when_concat_report_then_array_has_share_of_each_protocol_and_total():
     # Given
-    report = Report(MagicMock(), "test.pdf", "Test summary")
+    report = Report(make_tcp_dns_capture(), "test.pdf", "Test summary")
     report.array = [("TCP", 3), ("DNS", 1)]
 
     # When
@@ -116,7 +125,7 @@ def test_when_concat_report_then_array_has_share_of_each_protocol_and_total():
     # sans compression le texte du PDF est lisible directement dans le fichier
     pdf.set_compression(False)
     content = bytes(pdf.output())
-    for text in (b"Part du trafic", b"75.0 %", b"25.0 %", b"Total", b"100.0 %"):
+    for text in (b"Part du trafic", b"75.0 %", b"25.0 %", b"Total des paquets", b"100.0 %"):
         assert text in content
 
 
@@ -137,6 +146,7 @@ def make_capture(attacks: list, flag: str | None = None) -> MagicMock:
     capture = MagicMock()
     capture.get_source.return_value = "interface eth0"
     capture.protocols = {"ARP": 3, "TCP": 1}
+    capture.get_packet_count.return_value = 4
     capture.attacks = attacks
     capture.flag = flag
     return capture
