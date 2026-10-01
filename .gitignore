@@ -7,5 +7,8 @@ __pycache__/
 *.db
 *.sqlite3
 report.pdf
+report.json
 app.log
 .env
+graph.svg
+graph.png
