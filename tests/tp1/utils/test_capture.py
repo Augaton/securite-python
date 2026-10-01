@@ -155,13 +155,9 @@ def test_given_no_packet_when_gen_summary_then_say_no_packet():
 def test_given_arp_spoofing_when_analyse_then_attack_is_noted_in_summary():
     # Given
     capture = Capture()
-    feed(
-        capture,
-        [
-            Ether(src="aa:bb:cc:dd:ee:ff") / ARP(op=2, psrc=ip, hwsrc="aa:bb:cc:dd:ee:ff")
-            for ip in ("192.168.1.1", "192.168.1.10")
-        ],
-    )
+    real_reply = Ether(src="00:00:00:00:00:01") / ARP(op=2, psrc="192.168.1.1", hwsrc="00:00:00:00:00:01")
+    spoofed_reply = Ether(src="aa:bb:cc:dd:ee:ff") / ARP(op=2, psrc="192.168.1.1", hwsrc="aa:bb:cc:dd:ee:ff")
+    feed(capture, [real_reply, spoofed_reply])
 
     # When
     capture.analyse()
@@ -187,7 +183,8 @@ def test_given_legit_traffic_when_analyse_then_summary_says_everything_is_fine()
 def test_given_marker_in_traffic_when_analyse_then_flag_is_kept():
     # Given
     capture = Capture()
-    feed(capture, [Ether() / IP() / TCP() / Raw(b"GET /?q=ESGI{abc123} HTTP/1.1\r\n\r\n")])
+    injection = Raw(b"GET /?id=1 OR 1=1&q=ESGI{abc123} HTTP/1.1\r\n\r\n")
+    feed(capture, [Ether() / IP() / TCP() / injection])
 
     # When
     capture.analyse()

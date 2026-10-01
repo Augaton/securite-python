@@ -1,7 +1,7 @@
 import time
 
 import pytest
-from scapy.all import ARP, IP, TCP, Ether, Raw
+from scapy.all import ARP, ICMP, IP, TCP, Ether, Raw
 
 from src.tp1.utils.detection import analyse_packets
 
@@ -30,10 +30,11 @@ def test_given_legit_arp_traffic_when_detect_attacks_then_nothing_is_found():
 
 def test_given_mac_claiming_gateway_and_victim_when_detect_arp_spoofing_then_attacker_is_found():
     # Given
-    packets = [arp_reply(GATEWAY_IP, ATTACKER_MAC), arp_reply(VICTIM_IP, ATTACKER_MAC)] * 3
+    real_replies = [arp_reply(GATEWAY_IP, GATEWAY_MAC), arp_reply(VICTIM_IP, VICTIM_MAC)]
+    spoofed_replies = [arp_reply(GATEWAY_IP, ATTACKER_MAC), arp_reply(VICTIM_IP, ATTACKER_MAC)] * 3
 
     # When
-    result = analyse_packets(packets).get_arp_spoofing_attacks()
+    result = analyse_packets(real_replies + spoofed_replies).get_arp_spoofing_attacks()
 
     # Then
     assert len(result) == 1
@@ -57,7 +58,12 @@ def test_given_gateway_ip_claimed_again_by_other_mac_when_detect_arp_spoofing_th
 def test_given_attacker_ip_traffic_when_detect_arp_spoofing_then_its_real_ip_is_found():
     # Given
     own_traffic = Ether(src=ATTACKER_MAC) / IP(src=ATTACKER_IP) / TCP()
-    packets = [own_traffic, arp_reply(ATTACKER_IP, ATTACKER_MAC), arp_reply(GATEWAY_IP, ATTACKER_MAC)]
+    packets = [
+        own_traffic,
+        arp_reply(GATEWAY_IP, GATEWAY_MAC),
+        arp_reply(ATTACKER_IP, ATTACKER_MAC),
+        arp_reply(GATEWAY_IP, ATTACKER_MAC),
+    ]
 
     # When
     result = analyse_packets(packets).get_arp_spoofing_attacks()
@@ -222,6 +228,32 @@ def test_given_no_marker_when_find_flag_then_return_none():
     assert result is None
 
 
+def test_given_decoy_marker_before_the_injection_when_find_flag_then_return_the_marker_of_the_injection():
+    # Given
+    decoys = [
+        http(b"GET /?token=ESGI{leurre_http} HTTP/1.1\r\n\r\n", source_ip=VICTIM_IP),
+        Ether() / IP(src=VICTIM_IP) / ICMP() / Raw(b"ESGI{leurre_icmp}"),
+    ]
+    injection = http(b"GET /login.php?user=admin' OR 1=1-- &token=ESGI{vrai_marqueur} HTTP/1.1\r\n\r\n")
+
+    # When
+    result = analyse_packets([*decoys, injection]).flag
+
+    # Then
+    assert result == "ESGI{vrai_marqueur}"
+
+
+def test_given_decoy_marker_without_injection_when_find_flag_then_return_none():
+    # Given
+    packets = [Ether() / IP(src=VICTIM_IP) / ICMP() / Raw(b"ESGI{leurre_icmp}")]
+
+    # When
+    result = analyse_packets(packets).flag
+
+    # Then
+    assert result is None
+
+
 def test_given_malformed_arp_packet_when_detect_attacks_then_it_is_ignored_without_crashing():
     # Given
     # ARP avec un type de protocole inconnu : scapy donne psrc en octets bruts au lieu de texte
@@ -246,24 +278,22 @@ def test_given_real_owner_announcing_often_when_detect_arp_spoofing_then_newcome
     assert [attack.attacker_mac for attack in result] == [ATTACKER_MAC]
 
 
-def test_given_spoofing_before_real_reply_when_detect_attacks_then_mac_of_scanner_is_accused():
+def test_given_mac_shared_by_several_hosts_when_detect_arp_spoofing_then_nothing_is_found():
     # Given
-    spoofed_replies = [arp_reply(GATEWAY_IP, ATTACKER_MAC)] * 3
-    real_reply = [arp_reply(GATEWAY_IP, GATEWAY_MAC)]
-    scan = [syn(ATTACKER_IP, VICTIM_IP, port) for port in range(1, 21)]
+    # capture générée : plusieurs machines légitimes ont la même MAC, sans jamais se disputer une IP
+    packets = [arp_reply(f"192.168.1.{host}", VICTIM_MAC) for host in (10, 11, 12, 13)]
 
     # When
-    result = analyse_packets(spoofed_replies + real_reply + scan).get_attacks()
+    result = analyse_packets(packets).get_arp_spoofing_attacks()
 
     # Then
-    arp_attacks = [attack for attack in result if attack.attack_type == "arp_spoofing"]
-    assert [attack.attacker_mac for attack in arp_attacks] == [ATTACKER_MAC]
+    assert result == []
 
 
 def test_given_marker_with_control_characters_when_find_flag_then_it_is_rejected():
     # Given
     # \x1b] ... \x07 : séquence d'échappement qui changerait le titre du terminal où s'affichent les logs
-    packets = [http(b"GET /?q=ESGI{\x1b]0;pwned\x07} HTTP/1.1\r\n\r\n")]
+    packets = [http(b"GET /?q=1' OR '1'='1&t=ESGI{\x1b]0;pwned\x07} HTTP/1.1\r\n\r\n")]
 
     # When
     result = analyse_packets(packets).flag
@@ -274,7 +304,7 @@ def test_given_marker_with_control_characters_when_find_flag_then_it_is_rejected
 
 def test_given_packet_full_of_marker_starts_when_find_flag_then_search_stays_fast():
     # Given
-    packets = [http(b"ESGI{" * 12000)]
+    packets = [http(b"GET /?id=1' OR '1'='1&q=" + b"ESGI{" * 12000 + b" HTTP/1.1\r\n\r\n")]
 
     # When
     start = time.perf_counter()

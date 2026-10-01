@@ -253,7 +253,9 @@ def test_when_importing_the_tool_then_cairo_is_not_needed(tmp_path):
     # Given
     # le bac à sable de correction n'a pas la bibliothèque système cairo : on interdit son import
     code = "import sys; sys.modules['cairosvg'] = sys.modules['cairocffi'] = None; import src.tp1.main"
-    environment = {**os.environ, "PYTHONPATH": str(Path(__file__).resolve().parents[3])}
+    project_root = Path(__file__).resolve().parents[3]
+    python_path = [str(project_root), str(project_root / "src"), os.environ.get("PYTHONPATH", "")]
+    environment = {**os.environ, "PYTHONPATH": os.pathsep.join(python_path)}
 
     # When
     # depuis un dossier temporaire : l'import crée app.log dans le dossier courant
