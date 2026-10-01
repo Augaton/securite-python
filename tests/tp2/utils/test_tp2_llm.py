@@ -6,6 +6,7 @@ import requests
 
 from tests.tp2.factory import FAKE_DOMAIN, FAKE_IP
 from tp2.utils.llm import (
+    OPENROUTER_MODELS,
     SYSTEM_PROMPT,
     LLMClient,
     LLMTriage,
@@ -148,7 +149,7 @@ def test_openrouter_request(mock_post, monkeypatch):
     kwargs = mock_post.call_args.kwargs
     assert url == "https://openrouter.ai/api/v1/chat/completions"
     assert kwargs["headers"] == {"Authorization": "Bearer test-key"}
-    assert kwargs["json"]["model"] == "meta-llama/llama-3.3-70b-instruct:free"
+    assert kwargs["json"]["model"] == OPENROUTER_MODELS[0]
     assert kwargs["json"]["messages"] == [
         {"role": "system", "content": "system"},
         {"role": "user", "content": "user"},
@@ -189,24 +190,68 @@ def test_given_no_network_when_chat_then_backend_abandoned(mock_post, monkeypatc
 
 @patch("tp2.utils.llm.time.sleep")
 @patch("tp2.utils.llm.requests.post")
-def test_given_rate_limit_when_chat_then_retry_once(mock_post, mock_sleep, monkeypatch):
+def test_given_saturated_or_missing_model_when_chat_then_next_model(mock_post, mock_sleep, monkeypatch):
     # Given
     monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+    monkeypatch.setenv("OPENROUTER_MODEL", "first:free, second:free,third:free")
     mock_post.side_effect = [
-        make_response(429, {}, {"Retry-After": "3"}),
+        make_response(429, {}),
+        make_response(404, {}),
         make_response(200, openrouter_payload("réponse")),
     ]
+    client = LLMClient("openrouter")
+
+    # When
+    answer = client.chat("system", "user")
+
+    # Then
+    assert answer == "réponse"
+    assert client.model == "third:free"
+    assert client.openrouter_models == ["first:free", "third:free"]
+    assert [call.kwargs["json"]["model"] for call in mock_post.call_args_list] == [
+        "first:free",
+        "second:free",
+        "third:free",
+    ]
+    mock_sleep.assert_not_called()
+
+
+@patch("tp2.utils.llm.time.sleep")
+@patch("tp2.utils.llm.requests.post")
+def test_given_every_model_saturated_when_chat_then_wait_and_retry_once(mock_post, mock_sleep, monkeypatch):
+    # Given
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+    monkeypatch.setenv("OPENROUTER_MODEL", "only:free")
+    mock_post.side_effect = [make_response(429, {}), make_response(200, openrouter_payload("réponse"))]
 
     # When
     answer = LLMClient("openrouter").chat("system", "user")
 
     # Then
     assert answer == "réponse"
-    mock_sleep.assert_called_once_with(3)
+    mock_sleep.assert_called_once()
 
 
+@patch("tp2.utils.llm.time.sleep")
 @patch("tp2.utils.llm.requests.post")
-def test_given_server_error_when_chat_then_backend_kept(mock_post, monkeypatch):
+def test_given_daily_quota_used_up_when_chat_then_backend_abandoned(mock_post, mock_sleep, monkeypatch):
+    # Given
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+    monkeypatch.setenv("OPENROUTER_MODEL", "only:free")
+    mock_post.return_value = make_response(429, {})
+    client = LLMClient("openrouter")
+
+    # When
+    answer = client.chat("system", "user")
+
+    # Then
+    assert answer is None
+    assert client.backends == []
+
+
+@patch("tp2.utils.llm.time.sleep")
+@patch("tp2.utils.llm.requests.post")
+def test_given_server_error_when_chat_then_backend_kept(mock_post, mock_sleep, monkeypatch):
     # Given
     monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
     mock_post.return_value = make_response(502, {})

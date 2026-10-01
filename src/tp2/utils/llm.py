@@ -11,14 +11,24 @@ from tp2.utils.config import logger
 from tp2.utils.iocs import IOC_CATEGORIES
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
-OPENROUTER_MODEL = "meta-llama/llama-3.3-70b-instruct:free"
+# modèles gratuits essayés dans l'ordre : ils disparaissent (404) ou sont saturés (429) régulièrement, celui
+# de l'énoncé (llama-3.3-70b-instruct:free) n'est plus gratuit. OPENROUTER_MODEL (liste séparée par des
+# virgules) remplace cette liste
+OPENROUTER_MODELS = (
+    "nvidia/nemotron-3-super-120b-a12b:free",
+    "google/gemma-4-31b-it:free",
+    "qwen/qwen3.8-27b:free",
+    "meta-llama/llama-3.3-70b-instruct:free",
+)
 OLLAMA_HOST = "http://localhost:11434"
 OLLAMA_MODEL = "llama3.2"
 BACKENDS = ("openrouter", "ollama")
 BACKEND_CHOICES = ("auto", *BACKENDS, "offline")
 CONNECT_TIMEOUT = 5
 READ_TIMEOUT = 90
-MAX_RATE_LIMIT_WAIT = 20
+RATE_LIMIT_WAIT = 10
+# statuts HTTP d'un modèle absent (404), saturé (429) ou en panne (502, 503) : on passe au modèle suivant
+SKIPPED_MODEL_STATUSES = (404, 429, 502, 503)
 # statuts HTTP qui ne changeront pas d'un échantillon à l'autre (clé refusée, modèle inconnu, quota épuisé)
 FATAL_HTTP_STATUSES = (401, 402, 403, 404, 429)
 MAX_SUMMARY_LENGTH = 1200
@@ -175,6 +185,8 @@ class LLMClient:
             self.backends = ["openrouter", "ollama"] if os.getenv("OPENROUTER_API_KEY") else ["ollama"]
         else:
             self.backends = [] if backend == "offline" else [backend]
+        configured_models = [model.strip() for model in os.getenv("OPENROUTER_MODEL", "").split(",")]
+        self.openrouter_models = [model for model in configured_models if model] or list(OPENROUTER_MODELS)
         self.backend = None
         self.model = None
 
@@ -210,16 +222,39 @@ class LLMClient:
         return self.ask_ollama(messages)
 
     def ask_openrouter(self, messages: list[dict]) -> str:
+        """
+        Réponse du premier modèle OpenRouter disponible. Si tous sont saturés, nouvel essai après une pause
+        (palier gratuit : 20 requêtes / minute)
+        """
         key = os.getenv("OPENROUTER_API_KEY")
         if not key:
             raise LLMUnavailable("pas de clé OPENROUTER_API_KEY")
-        self.model = os.getenv("OPENROUTER_MODEL", OPENROUTER_MODEL)
-        response = self.post(
-            OPENROUTER_URL,
-            headers={"Authorization": f"Bearer {key}"},
-            json={"model": self.model, "messages": messages, "temperature": 0},
-        )
-        return response.json()["choices"][0]["message"]["content"]
+        last_error = None
+        for attempt in range(2):
+            if attempt:
+                logger.info(f"Modèles OpenRouter saturés, nouvel essai dans {RATE_LIMIT_WAIT} s")
+                time.sleep(RATE_LIMIT_WAIT)
+            for model in list(self.openrouter_models):
+                try:
+                    response = self.post(
+                        OPENROUTER_URL,
+                        headers={"Authorization": f"Bearer {key}"},
+                        json={"model": model, "messages": messages, "temperature": 0},
+                    )
+                except requests.HTTPError as error:
+                    status = error.response.status_code if error.response is not None else None
+                    if status not in SKIPPED_MODEL_STATUSES:
+                        raise
+                    logger.info(f"Modèle {model} indisponible (HTTP {status}), modèle suivant")
+                    if status == 404:
+                        self.openrouter_models.remove(model)
+                    last_error = error
+                    continue
+                self.model = model
+                return response.json()["choices"][0]["message"]["content"]
+            if not self.openrouter_models:
+                raise LLMUnavailable("aucun modèle OpenRouter gratuit disponible")
+        raise last_error
 
     def ask_ollama(self, messages: list[dict]) -> str:
         host = os.getenv("OLLAMA_HOST", OLLAMA_HOST).rstrip("/")
@@ -240,16 +275,7 @@ class LLMClient:
 
     @staticmethod
     def post(url: str, **kwargs) -> requests.Response:
-        """
-        Requête POST, réessayée une fois après une limite de débit (palier gratuit : 20 requêtes / minute)
-        """
         response = requests.post(url, timeout=(CONNECT_TIMEOUT, READ_TIMEOUT), **kwargs)
-        if response.status_code == 429:
-            retry_after = response.headers.get("Retry-After", "")
-            wait = min(int(retry_after) if retry_after.isdigit() else 5, MAX_RATE_LIMIT_WAIT)
-            logger.info(f"Limite de débit du LLM atteinte, nouvel essai dans {wait} s")
-            time.sleep(wait)
-            response = requests.post(url, timeout=(CONNECT_TIMEOUT, READ_TIMEOUT), **kwargs)
         response.raise_for_status()
         return response
 
