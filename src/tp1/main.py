@@ -2,10 +2,10 @@ import argparse
 import sys
 from pathlib import Path
 
-from src.tp1.utils.capture import TIMEOUT, Capture
-from src.tp1.utils.config import logger
-from src.tp1.utils.lib import drop_privileges
-from src.tp1.utils.report import Report
+from tp1.utils.capture import TIMEOUT, Capture
+from tp1.utils.config import logger
+from tp1.utils.lib import drop_privileges
+from tp1.utils.report import Report
 
 PCAP_EXTENSIONS = (".pcap", ".pcapng", ".cap")
 
@@ -32,6 +32,9 @@ def build_parser() -> argparse.ArgumentParser:
         "--pcap", "-r", help="analyser un fichier pcap au lieu d'écouter le réseau (sans root)"
     )
     parser.add_argument(
+        "--out", "-o", default="report.json", help="chemin du rapport JSON (défaut : report.json)"
+    )
+    parser.add_argument(
         "--timeout", type=int, default=TIMEOUT, help=f"durée de la capture en secondes (défaut : {TIMEOUT})"
     )
     return parser
@@ -42,7 +45,7 @@ def parse_arguments(arguments: list[str] | None = None) -> argparse.Namespace:
     Lit les options de la ligne de commande, en ignorant celles qu'on ne connait pas
 
     :param arguments: options à lire, None pour celles passées au programme
-    :return: options (timeout et pcap)
+    :return: options (timeout, pcap et out)
     """
     parser = build_parser()
     options, unknown_arguments = parser.parse_known_args(arguments)
@@ -66,6 +69,10 @@ def main(arguments: list[str] | None = None):
     logger.info("Starting TP1")
     options = parse_arguments(arguments)
 
+    out_path = Path(options.out)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    pdf_path = str(out_path.with_suffix(".pdf"))
+
     capture = Capture(options.pcap, options.timeout)
     try:
         capture.open_socket()
@@ -73,7 +80,7 @@ def main(arguments: list[str] | None = None):
         # root ne connait pas poetry : on donne le chemin complet du script
         tp1_script = Path(sys.executable).parent / "tp1"
         logger.error(f"Pas les droits pour capturer les paquets, relancer avec : sudo {tp1_script}")
-        return
+        sys.exit(1)
     drop_privileges()
 
     capture.capture_traffic()
@@ -81,12 +88,11 @@ def main(arguments: list[str] | None = None):
     summary = capture.get_summary()
     logger.info(summary)
 
-    filename = "report.pdf"
-    report = Report(capture, filename, summary)
+    report = Report(capture, pdf_path, summary)
     report.generate("graph")
     report.generate("array")
-    report.save(filename)
-    report.save_json("report.json")
+    report.save(pdf_path)
+    report.save_json(str(out_path))
 
 
 if __name__ == "__main__":
