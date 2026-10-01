@@ -8,6 +8,7 @@ from tp2.utils.scanner import YaraScanner
 from tp2.utils.triage import (
     Triage,
     check_llm_verdict,
+    choose_family,
     combine_scores,
     compute_heuristic_score,
     find_capabilities,
@@ -103,6 +104,21 @@ def test_is_packed():
 
 
 @pytest.mark.parametrize(
+    ("heuristic_family", "llm_family", "expected"),
+    [
+        ("dropper", "trojan", "dropper"),
+        ("trojan", "backdoor", "backdoor"),
+        ("unknown", "ransomware", "ransomware"),
+        ("trojan", "unknown", "trojan"),
+        ("trojan", None, "trojan"),
+    ],
+)
+def test_choose_family_prefers_the_evidence(heuristic_family, llm_family, expected):
+    verdict = make_verdict(llm_family, 8) if llm_family else None
+    assert choose_family(heuristic_family, verdict) == expected
+
+
+@pytest.mark.parametrize(
     ("heuristic", "llm", "expected"), [(8, None, 8), (8, 0, 8), (4, 10, 7), (10, 10, 10)]
 )
 def test_combine_scores_never_goes_below_the_heuristic_score(heuristic, llm, expected):
@@ -179,7 +195,7 @@ def test_given_coherent_llm_when_triage_then_its_verdict_is_used(dropper_path):
     result, _ = run_triage(dropper_path, make_verdict("downloader", 9))
 
     # Then
-    assert result["family_guess"] == "downloader"
+    assert result["family_guess"] == "dropper"
     assert result["score"] == 10
     assert result["llm_summary"] == "Résumé du LLM : downloader"
     assert "T1105" in result["mitre_attack"]

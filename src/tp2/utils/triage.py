@@ -46,6 +46,8 @@ FAMILY_RULES = (
     ("packed", {"packing"}),
     ("trojan", {"c2_communication"}),
 )
+# familles qui viennent seulement d'indices généraux : le LLM peut proposer mieux
+GENERIC_FAMILIES = ("trojan", "unknown", "clean")
 BENIGN_FAMILIES = ("clean", "benign", "sain", "safe", "legit", "legitimate", "none", "goodware")
 # au-delà, un verdict « sain » du LLM contredit les indicateurs : sûrement une injection qui a marché
 SUSPICIOUS_SCORE = 6
@@ -138,6 +140,16 @@ def guess_family(capabilities: dict, score: int) -> str:
         if needed <= capabilities.keys():
             return family
     return "unknown" if score > 0 else "clean"
+
+
+def choose_family(heuristic_family: str, verdict: dict | None) -> str:
+    """
+    Famille finale : celle des preuves (API d'un keylogger, d'un dropper...) si elles la désignent, sinon
+    celle du LLM
+    """
+    if verdict is None or heuristic_family not in GENERIC_FAMILIES or verdict["family"] == "unknown":
+        return heuristic_family
+    return verdict["family"]
 
 
 def combine_scores(heuristic_score: int, llm_score: int | None) -> int:
@@ -277,8 +289,7 @@ class Triage:
         }
         verdict, verdict_note = check_llm_verdict(self.llm.triage(summary, result["iocs"]), heuristic_score)
         result["llm"] = {"verdict": verdict, "note": verdict_note}
-        result["family_guess"] = verdict["family"] if verdict and verdict["family"] != "unknown" else None
-        result["family_guess"] = result["family_guess"] or result["heuristic_family"]
+        result["family_guess"] = choose_family(result["heuristic_family"], verdict)
         llm_techniques = verdict["mitre_attack"] if verdict else []
         # techniques de base, comme dans l'exemple de l'énoncé : T1547.001 et T1547 donnent T1547
         result["mitre_attack"] = sorted(

@@ -162,6 +162,7 @@ class Report:
         self.add_score_bar(pdf)
         rows = [
             ("Famille", result["family_guess"]),
+            ("Famille selon le LLM", (result["llm"]["verdict"] or {}).get("family", "pas de verdict")),
             ("MITRE ATT&CK", ", ".join(result["mitre_attack"]) or "aucune technique"),
             ("Marqueur", result["flag"] or "aucun"),
             ("Score sans LLM", f"{result['heuristic_score']}/10 ({result['heuristic_family']})"),
