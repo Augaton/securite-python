@@ -74,14 +74,15 @@ def get_protocols(packet: Packet) -> list[str]:
         """
         Compte et analyse un paquet dès qu'il arrive, sans le garder en mémoire
         """
-        self.protocol_counts[get_protocol(packet)] += 1
+        self.packet_count += 1
+        self.protocol_counts.update(get_protocols(packet))
         self.analyzer.add_packet(packet)
 
     def get_packet_count(self) -> int:
         """
         Retourne le nombre de paquets capturés
         """
-        return sum(self.protocol_counts.values())
+        return self.packet_count
 
     def get_source(self) -> str:
         """
