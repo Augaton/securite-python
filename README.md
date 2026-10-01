@@ -65,10 +65,9 @@ Les logs sont aussi écrits dans `app.log`.
 
 ### Détection des attaques
 
-- **ARP spoofing** : une MAC qui annonce plusieurs IP (elle se fait passer pour la passerelle et la
-  victime), ou qui annonce une IP déjà annoncée par une autre MAC. Dans ce cas on accuse celle qui fait
-  aussi le scan ou l'injection, sinon la nouvelle (comme arpwatch : la première MAC vue est la vraie).
-  On compte pas le nombre d'annonces, sinon la vraie passerelle qui en fait plein se faisait accuser
+- **ARP spoofing** : une MAC qui annonce une IP déjà annoncée par une autre MAC (comme arpwatch : la
+  première MAC vue pour une IP est la vraie, les suivantes l'usurpent). Une MAC qui annonce plusieurs IP
+  toute seule n'est pas accusée : dans le pcap du correcteur plein de machines ont la même MAC
 - **scan SYN** : une IP qui envoie des SYN (sans ACK) vers au moins 10 ports différents
 - **injection SQL** : du SQL typique d'une injection (`' OR '1'='1`, `UNION SELECT`, `'--`...) dans une
   requête HTTP. Le HTTPS est chiffré donc on peut pas regarder dedans
