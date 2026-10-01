@@ -1,26 +1,46 @@
 from collections import Counter
 
 from scapy.all import Packet, conf, sniff
+from scapy.layers.dns import DNS
+from scapy.layers.http import HTTPRequest, HTTPResponse
+from scapy.layers.inet import ICMP, IP, TCP, UDP
+from scapy.layers.inet6 import IPv6
+from scapy.layers.l2 import ARP, Ether
 
 from src.tp1.utils.config import logger
 from src.tp1.utils.detection import TrafficAnalyzer
-from src.tp1.utils.lib import choose_interface, get_protocol
+from src.tp1.utils.lib import choose_interface
 
 TIMEOUT = 60
 
+LAYERS = (
+    ("Ethernet", Ether),
+    ("ARP", ARP),
+    ("IP", IP),
+    ("IPv6", IPv6),
+    ("TCP", TCP),
+    ("UDP", UDP),
+    ("ICMP", ICMP),
+    ("DNS", DNS),
+)
+HTTP_PREFIXES = (b"GET ", b"POST ", b"PUT ", b"DELETE ", b"HEAD ", b"OPTIONS ", b"PATCH ", b"HTTP/")
 
-class Capture:
-    def __init__(self, pcap_file: str | None = None, timeout: int = TIMEOUT) -> None:
-        self.pcap_file = pcap_file
-        self.timeout = timeout
-        self.interface = choose_interface() if pcap_file is None else ""
-        self.listen_socket = None
-        self.protocol_counts = Counter()
-        self.analyzer = TrafficAnalyzer()
-        self.protocols = {}
-        self.attacks = []
-        self.flag = None
-        self.summary = ""
+
+def get_protocols(packet: Packet) -> list[str]:
+    """
+    Retourne toutes les couches reconnues dans un paquet (un paquet HTTP compte aussi en TCP, IP, Ethernet)
+
+    :param packet: paquet à examiner
+    :return: noms des protocoles présents
+    """
+    protocols = [name for name, layer in LAYERS if packet.haslayer(layer)]
+    if packet.haslayer(TCP) and (
+        packet.haslayer(HTTPRequest)
+        or packet.haslayer(HTTPResponse)
+        or bytes(packet[TCP].payload).startswith(HTTP_PREFIXES)
+    ):
+        protocols.append("HTTP")
+    return protocols
 
     def open_socket(self) -> None:
         """
