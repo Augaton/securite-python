@@ -1,7 +1,7 @@
 import time
 
 import pytest
-from scapy.all import ARP, IP, TCP, Ether, Raw
+from scapy.all import ARP, ICMP, IP, TCP, Ether, Raw
 
 from src.tp1.utils.detection import analyse_packets
 
@@ -222,6 +222,32 @@ def test_given_no_marker_when_find_flag_then_return_none():
     assert result is None
 
 
+def test_given_decoy_marker_before_the_injection_when_find_flag_then_return_the_marker_of_the_injection():
+    # Given
+    decoys = [
+        http(b"GET /?token=ESGI{leurre_http} HTTP/1.1\r\n\r\n", source_ip=VICTIM_IP),
+        Ether() / IP(src=VICTIM_IP) / ICMP() / Raw(b"ESGI{leurre_icmp}"),
+    ]
+    injection = http(b"GET /login.php?user=admin' OR 1=1-- &token=ESGI{vrai_marqueur} HTTP/1.1\r\n\r\n")
+
+    # When
+    result = analyse_packets([*decoys, injection]).flag
+
+    # Then
+    assert result == "ESGI{vrai_marqueur}"
+
+
+def test_given_decoy_marker_without_injection_when_find_flag_then_return_none():
+    # Given
+    packets = [Ether() / IP(src=VICTIM_IP) / ICMP() / Raw(b"ESGI{leurre_icmp}")]
+
+    # When
+    result = analyse_packets(packets).flag
+
+    # Then
+    assert result is None
+
+
 def test_given_malformed_arp_packet_when_detect_attacks_then_it_is_ignored_without_crashing():
     # Given
     # ARP avec un type de protocole inconnu : scapy donne psrc en octets bruts au lieu de texte
@@ -263,7 +289,7 @@ def test_given_spoofing_before_real_reply_when_detect_attacks_then_mac_of_scanne
 def test_given_marker_with_control_characters_when_find_flag_then_it_is_rejected():
     # Given
     # \x1b] ... \x07 : séquence d'échappement qui changerait le titre du terminal où s'affichent les logs
-    packets = [http(b"GET /?q=ESGI{\x1b]0;pwned\x07} HTTP/1.1\r\n\r\n")]
+    packets = [http(b"GET /?q=1' OR '1'='1&t=ESGI{\x1b]0;pwned\x07} HTTP/1.1\r\n\r\n")]
 
     # When
     result = analyse_packets(packets).flag
@@ -274,7 +300,7 @@ def test_given_marker_with_control_characters_when_find_flag_then_it_is_rejected
 
 def test_given_packet_full_of_marker_starts_when_find_flag_then_search_stays_fast():
     # Given
-    packets = [http(b"ESGI{" * 12000)]
+    packets = [http(b"GET /?id=1' OR '1'='1&q=" + b"ESGI{" * 12000 + b" HTTP/1.1\r\n\r\n")]
 
     # When
     start = time.perf_counter()

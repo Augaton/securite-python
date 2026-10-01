@@ -1,7 +1,7 @@
 import re
 from collections import defaultdict
 from dataclasses import dataclass
-from urllib.parse import unquote, unquote_plus
+from urllib.parse import unquote_plus
 
 from scapy.all import ARP, IP, TCP, Ether, IPv6, Packet, Raw
 
@@ -104,15 +104,12 @@ def get_http_request(packet: Packet) -> str | None:
     return unquote_plus(payload.decode("latin-1"))
 
 
-def find_sql_injection(packet: Packet, source_ip: str) -> Attack | None:
+def build_sql_injection(packet: Packet, source_ip: str, request: str) -> Attack:
     """
-    Cherche une injection SQL dans la requête HTTP d'un paquet
+    Décrit l'injection SQL portée par la requête HTTP d'un paquet
 
-    :return: l'attaque, None si le paquet n'en contient pas
+    :return: l'attaque, avec la première ligne de la requête
     """
-    request = get_http_request(packet)
-    if request is None or not SQL_INJECTION_PATTERN.search(request):
-        return None
     request_line = request.splitlines()[0][:100]
     # !r échappe les caractères de contrôle envoyés par l'attaquant avant qu'ils arrivent au terminal
     return Attack(
@@ -125,17 +122,13 @@ def find_sql_injection(packet: Packet, source_ip: str) -> Attack | None:
     )
 
 
-def search_flag(packet: Packet) -> str | None:
+def find_flag(request: str) -> str | None:
     """
-    Cherche le marqueur ESGI{...} dans un paquet, même encodé dans une URL
+    Cherche le marqueur ESGI{...} dans une requête HTTP déjà décodée
 
-    :return: le marqueur, None s'il n'est pas dans le paquet
+    :return: le marqueur, None si la requête n'en contient pas
     """
-    # original = octets reçus, bytes(packet) reconstruirait tout le paquet (beaucoup plus lent)
-    raw_packet = packet.original or bytes(packet)
-    if b"ESGI" not in raw_packet:
-        return None
-    match = FLAG_PATTERN.search(unquote(raw_packet.decode("latin-1")))
+    match = FLAG_PATTERN.search(request)
     return match.group(0) if match else None
 
 
@@ -166,8 +159,6 @@ class TrafficAnalyzer:
             self.add_arp(packet[ARP])
         if packet.haslayer(TCP):
             self.add_tcp(packet, source_ip)
-        if self.flag is None:
-            self.flag = search_flag(packet)
 
     def add_arp(self, arp: ARP) -> None:
         """
@@ -180,17 +171,21 @@ class TrafficAnalyzer:
 
     def add_tcp(self, packet: Packet, source_ip: str) -> None:
         """
-        Note les SYN seuls (scan) et cherche une injection SQL dans les requêtes HTTP
+        Note les SYN seuls (scan), les injections SQL des requêtes HTTP et leur marqueur
         """
         if packet[TCP].flags == "S":
             self.syn_ports_by_ip[source_ip].add(packet[TCP].dport)
             self.syn_targets_by_ip[source_ip].add(get_destination_ip(packet))
             self.syn_mac_by_ip.setdefault(source_ip, get_source_mac(packet))
         # pas de elif : un paquet fabriqué avec scapy est un SYN par défaut, même s'il porte une requête
+        request = get_http_request(packet)
+        if request is None or not SQL_INJECTION_PATTERN.search(request):
+            return
         if source_ip not in self.sql_injections:
-            injection = find_sql_injection(packet, source_ip)
-            if injection is not None:
-                self.sql_injections[source_ip] = injection
+            self.sql_injections[source_ip] = build_sql_injection(packet, source_ip, request)
+        # le marqueur est celui de l'injection : la capture contient aussi un faux marqueur (leurre) ailleurs
+        if self.flag is None:
+            self.flag = find_flag(request)
 
     def get_attacks(self) -> list[Attack]:
         """

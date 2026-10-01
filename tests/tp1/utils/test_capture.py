@@ -187,7 +187,8 @@ def test_given_legit_traffic_when_analyse_then_summary_says_everything_is_fine()
 def test_given_marker_in_traffic_when_analyse_then_flag_is_kept():
     # Given
     capture = Capture()
-    feed(capture, [Ether() / IP() / TCP() / Raw(b"GET /?q=ESGI{abc123} HTTP/1.1\r\n\r\n")])
+    injection = Raw(b"GET /?id=1 OR 1=1&q=ESGI{abc123} HTTP/1.1\r\n\r\n")
+    feed(capture, [Ether() / IP() / TCP() / injection])
 
     # When
     capture.analyse()
