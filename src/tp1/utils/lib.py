@@ -91,7 +91,9 @@ def get_protocol(packet: Packet) -> str:
 
 
 def is_http(packet: Packet) -> bool:
-    return packet.haslayer(TCP) and packet.haslayer(Raw) and bytes(packet[Raw].load).startswith(HTTP_SIGNATURES)
+    return (
+        packet.haslayer(TCP) and packet.haslayer(Raw) and bytes(packet[Raw].load).startswith(HTTP_SIGNATURES)
+    )
 
 
 def get_protocols(packet: Packet) -> list[str]:
