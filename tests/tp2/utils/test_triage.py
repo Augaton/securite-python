@@ -2,8 +2,19 @@ from src.tp2.utils.llm import LLMClient
 from src.tp2.utils.triage import triage_sample
 
 SCHEMA_KEYS = {
-    "sha256", "md5", "size", "entropy", "file_type", "iocs", "imports",
-    "yara_matches", "family_guess", "mitre_attack", "llm_summary", "score", "flag",
+    "sha256",
+    "md5",
+    "size",
+    "entropy",
+    "file_type",
+    "iocs",
+    "imports",
+    "yara_matches",
+    "family_guess",
+    "mitre_attack",
+    "llm_summary",
+    "score",
+    "flag",
 }
 
 

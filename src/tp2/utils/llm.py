@@ -16,7 +16,9 @@ REQUIRED_KEYS = {"famille", "capacites", "mitre_attack", "score", "iocs"}
 class LLMClient:
     def __init__(self, backend: str = "openrouter", model: str | None = None) -> None:
         self.backend = backend
-        self.model = model or ("meta-llama/llama-3.3-70b-instruct:free" if backend == "openrouter" else "qwen2.5:3b")
+        self.model = model or (
+            "meta-llama/llama-3.3-70b-instruct:free" if backend == "openrouter" else "qwen2.5:3b"
+        )
 
     def available(self) -> bool:
         if self.backend == "openrouter":
@@ -66,7 +68,7 @@ def _parse_verdict(raw: str | None) -> dict | None:
     if not raw:
         return None
     try:
-        verdict = json.loads(raw[raw.find("{"): raw.rfind("}") + 1])
+        verdict = json.loads(raw[raw.find("{") : raw.rfind("}") + 1])
     except Exception:
         return None
     if not REQUIRED_KEYS.issubset(verdict):

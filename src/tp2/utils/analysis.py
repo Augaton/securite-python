@@ -9,8 +9,29 @@ IPV4_PATTERN = re.compile(rb"\b(?:\d{1,3}\.){3}\d{1,3}\b")
 DOMAIN_PATTERN = re.compile(rb"\b(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}\b")
 MUTEX_PATTERN = re.compile(rb"(?:Global|Local)\\[^\s\x00\"']{1,80}")
 REGISTRY_PATTERN = re.compile(rb"HK(?:LM|CU|CR|U|CC)\\[^\s\x00\"']{1,160}")
-DOMAIN_TLDS = {"com", "net", "org", "io", "ru", "cn", "xyz", "top", "test", "info",
-               "biz", "online", "site", "gov", "edu", "co", "uk", "de", "fr", "su", "pw"}
+DOMAIN_TLDS = {
+    "com",
+    "net",
+    "org",
+    "io",
+    "ru",
+    "cn",
+    "xyz",
+    "top",
+    "test",
+    "info",
+    "biz",
+    "online",
+    "site",
+    "gov",
+    "edu",
+    "co",
+    "uk",
+    "de",
+    "fr",
+    "su",
+    "pw",
+}
 
 
 def shannon_entropy(data: bytes) -> float:

@@ -2,7 +2,13 @@ from src.tp2.utils import verdict
 
 META_PACKED = {"entropy": 7.5}
 META_NORMAL = {"entropy": 4.0}
-NET_IOCS = {"urls": ["http://c2/gate.php"], "ips": ["1.2.3.4"], "domains": ["c2.test"], "mutex": [], "registry": []}
+NET_IOCS = {
+    "urls": ["http://c2/gate.php"],
+    "ips": ["1.2.3.4"],
+    "domains": ["c2.test"],
+    "mutex": [],
+    "registry": [],
+}
 EMPTY_IOCS = {"urls": [], "ips": [], "domains": [], "mutex": [], "registry": []}
 
 
@@ -41,3 +47,8 @@ def test_build_features_caps_imports_and_excludes_binary():
 def test_deterministic_summary_mentions_family_and_score():
     summary = verdict.deterministic_summary("backdoor", 6, ["R"], NET_IOCS)
     assert "backdoor" in summary and "6/10" in summary
+
+
+def test_has_network():
+    assert verdict._has_network(NET_IOCS)
+    assert not verdict._has_network(EMPTY_IOCS)

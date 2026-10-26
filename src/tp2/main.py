@@ -28,7 +28,7 @@ def main(argv: list[str] | None = None) -> None:
     client = LLMClient(args.llm)
     for sample in iter_samples(args.samples):
         result = triage_sample(str(sample), args.rules, client)
-        json_path = generate_report(result, args.out)
+        json_path = generate_report(result, args.out, sample.name)
         logger.info(f"{sample.name} -> {json_path.name} (score {result['score']}, drapeau {result['flag']})")
 
 

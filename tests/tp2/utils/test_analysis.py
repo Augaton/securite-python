@@ -25,8 +25,10 @@ def test_shannon_entropy(data, expected):
 
 
 def test_extract_iocs():
-    data = (b"http://c2-x.example.test/gate.php 185.1.2.3 bug@evil.ru "
-            b"Global\\mutex123 HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run\\svc gnu.org libc.so.6")
+    data = (
+        b"http://c2-x.example.test/gate.php 185.1.2.3 bug@evil.ru "
+        b"Global\\mutex123 HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run\\svc gnu.org libc.so.6"
+    )
     iocs = extract_iocs(data)
     assert "http://c2-x.example.test/gate.php" in iocs["urls"]
     assert iocs["ips"] == ["185.1.2.3"]
@@ -49,3 +51,16 @@ def test_parse_binary_returns_expected_keys(tmp_path):
     sample.write_bytes(b"\x7fELF")
     result = parse_binary(str(sample))
     assert set(result) == {"imports", "exports", "sections"}
+
+
+def test_detect_file_type_elf():
+    from src.tp2.utils.analysis import detect_file_type
+
+    assert "ELF" in detect_file_type(b"\x7fELF\x02\x01\x01")
+
+
+def test_valid_ipv4():
+    from src.tp2.utils.analysis import _valid_ipv4
+
+    assert _valid_ipv4("185.1.2.3")
+    assert not _valid_ipv4("999.1.1.1")

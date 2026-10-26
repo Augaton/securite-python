@@ -6,17 +6,22 @@ from src.tp2.utils.config import logger
 FONT = "Helvetica"
 
 
-def generate_report(result: dict, out_dir: str) -> Path:
-    """Écrit le JSON machine <sha256>.json dans out_dir (et un PDF lisible, best-effort). Renvoie le JSON."""
+def generate_report(result: dict, out_dir: str, sample_name: str) -> Path:
+    """Écrit <sample>.triage.json (attendu par le correcteur) et <sha256>.json dans out_dir.
+
+    Produit aussi un PDF lisible (best-effort). Renvoie le chemin du .triage.json.
+    """
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
-    json_path = out / f"{result['sha256']}.json"
-    json_path.write_text(json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8")
+    payload = json.dumps(result, indent=2, ensure_ascii=False)
+    triage_path = out / f"{sample_name}.triage.json"
+    triage_path.write_text(payload, encoding="utf-8")
+    (out / f"{result['sha256']}.json").write_text(payload, encoding="utf-8")
     try:
-        _generate_pdf(result, out / f"{result['sha256']}.pdf")
+        _generate_pdf(result, out / f"{sample_name}.triage.pdf")
     except Exception as error:
         logger.warning(f"PDF non généré : {error}")
-    return json_path
+    return triage_path
 
 
 def _generate_pdf(result: dict, pdf_path: Path) -> None:
@@ -29,8 +34,13 @@ def _generate_pdf(result: dict, pdf_path: Path) -> None:
     pdf.set_auto_page_break(True, margin=15)
     pdf.add_page()
     pdf.set_font(FONT, "B", 15)
-    pdf.cell(0, 10, text(f"Triage - {result['family_guess']} (score {result['score']}/10)"),
-             new_x="LMARGIN", new_y="NEXT")
+    pdf.cell(
+        0,
+        10,
+        text(f"Triage - {result['family_guess']} (score {result['score']}/10)"),
+        new_x="LMARGIN",
+        new_y="NEXT",
+    )
     pdf.set_font(FONT, size=11)
     for line in (
         f"SHA-256 : {result['sha256']}",

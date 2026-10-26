@@ -13,9 +13,18 @@ def test_main_writes_one_sha256_json_per_sample(tmp_path, monkeypatch):
 
     main(["--samples", str(samples), "--out", str(out)])
 
-    jsons = list(out.glob("*.json"))
-    assert len(jsons) == 1
-    report = json.loads(jsons[0].read_text(encoding="utf-8"))
+    triage = out / "a.bin.triage.json"
+    assert triage.exists()
+    report = json.loads(triage.read_text(encoding="utf-8"))
     assert report["flag"] == "ESGI{real_a}"
-    assert jsons[0].stem == report["sha256"]
+    assert (out / f"{report['sha256']}.json").exists()  # format <sha256>.json du sujet
     assert "ESGI_C2_HTTP_Beacon" in report["yara_matches"]
+
+
+def test_iter_samples_skips_aux_files(tmp_path):
+    from src.tp2.main import iter_samples
+
+    (tmp_path / "a.bin").write_bytes(b"x")
+    (tmp_path / "GROUP.txt").write_text("grp")
+    (tmp_path / "notes.json").write_text("{}")
+    assert [p.name for p in iter_samples(str(tmp_path))] == ["a.bin"]

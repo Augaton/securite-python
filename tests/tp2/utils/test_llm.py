@@ -48,3 +48,15 @@ def test_parse_verdict_bounds_score():
 def test_openrouter_client_needs_api_key(monkeypatch):
     monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
     assert LLMClient("openrouter").available() is False
+
+
+def test_messages_shape():
+    from src.tp2.utils.llm import _messages
+
+    messages = _messages("sys", "usr")
+    assert messages == [{"role": "system", "content": "sys"}, {"role": "user", "content": "usr"}]
+
+
+def test_chat_returns_none_when_backend_unreachable():
+    # ollama local absent en test -> la requête échoue, chat renvoie None sans lever
+    assert LLMClient("ollama").chat("sys", "usr") is None
