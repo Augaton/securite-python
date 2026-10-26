@@ -23,9 +23,7 @@ MAX_BARS = 25  # beyond this the chart no longer fits on a page (the table keeps
 
 
 def to_pdf_text(text: str) -> str:
-    """
-    Replace with "?" the characters fpdf's core fonts (latin-1) cannot render
-    """
+    """Replace characters fpdf's core latin-1 fonts cannot render with "?"."""
     return str(text).encode("latin-1", "replace").decode("latin-1")
 
 
@@ -39,9 +37,6 @@ class Report:
         self.graph = ""
 
     def concat_report(self) -> FPDF:
-        """
-        Assemble the full PDF: title, summary, table, traffic legitimacy and chart
-        """
         pdf = FPDF()
         pdf.set_margins(MARGIN_MM, MARGIN_MM)
         pdf.set_auto_page_break(True, margin=MARGIN_MM)
@@ -64,9 +59,6 @@ class Report:
         return pdf
 
     def add_title(self, pdf: FPDF) -> None:
-        """
-        Add the report title, with the date and the source of the packets
-        """
         pdf.set_font(FONT, "B", 18)
         pdf.cell(0, 10, self.title, new_x="LMARGIN", new_y="NEXT")
         pdf.set_font(FONT, size=10)
@@ -79,17 +71,11 @@ class Report:
 
     @staticmethod
     def add_section(pdf: FPDF, title: str) -> None:
-        """
-        Add a report section title
-        """
         pdf.set_font(FONT, "B", 13)
         pdf.cell(0, 8, title, new_x="LMARGIN", new_y="NEXT")
         pdf.set_font(FONT, size=11)
 
     def add_array(self, pdf: FPDF) -> None:
-        """
-        Add the per-protocol packet table, with each share, its legitimacy and the total
-        """
         total = sum(count for _, count in self.array)
         with pdf.table(
             col_widths=(3, 1.6, 1.8, 3.6),
@@ -104,9 +90,6 @@ class Report:
             table.row(("Total", str(total), format_share(total, total), ""))
 
     def get_legitimacy(self, protocol: str) -> str:
-        """
-        Tell whether a protocol's traffic is legitimate, otherwise the attacks going through it
-        """
         attack_names = [attack.name for attack in self.capture.attacks if attack.protocol == protocol]
         if not attack_names:
             return "Legitimate"
@@ -114,9 +97,6 @@ class Report:
 
     @staticmethod
     def add_attacks_table(pdf: FPDF, attacks: list) -> None:
-        """
-        Add the attacks table, with the attacker's IP and MAC
-        """
         with pdf.table(
             col_widths=(2.2, 1.8, 2.4, 3, 4.6),
             text_align="LEFT",
@@ -136,9 +116,6 @@ class Report:
                 table.row(tuple(to_pdf_text(cell) for cell in cells))
 
     def add_attacks(self, pdf: FPDF) -> None:
-        """
-        Add the attack attempts (or state that all is good) and the marker found
-        """
         attacks = list(self.capture.attacks)
         if not attacks:
             pdf.multi_cell(0, 6, "No attack detected: all good.", new_x="LMARGIN", new_y="NEXT")
@@ -151,9 +128,6 @@ class Report:
             )
 
     def add_graph(self, pdf: FPDF) -> None:
-        """
-        Add the per-protocol packet bar chart, on the next page if it does not fit
-        """
         protocols = list(self.capture.protocols.items())[:MAX_BARS]
         if self.graph == "" or not protocols:
             return
@@ -163,9 +137,6 @@ class Report:
 
     @staticmethod
     def draw_bars(pdf: FPDF, protocols: list[tuple[str, int]]) -> None:
-        """
-        Draw one bar per protocol, proportional to its packet count
-        """
         max_count = max(count for _, count in protocols)
         bars_width = pdf.epw - LABEL_WIDTH_MM - VALUE_WIDTH_MM
         pdf.set_font(FONT, size=10)
@@ -178,19 +149,12 @@ class Report:
             pdf.ln(BAR_GAP_MM)
 
     def save(self, filename: str) -> None:
-        """
-        Generate the PDF and save it to filename
-        """
         pdf = self.concat_report()
         pdf.output(filename)
         logger.info(f"Report saved to {filename}")
 
     def save_json(self, filename: str) -> None:
-        """
-        Save the report.json read by the grader: protocols, attacks and marker
-
-        :param filename: name of the JSON file
-        """
+        """Write the report.json read by the grader: protocols, attacks and marker."""
         result = {
             "protocols": dict(self.capture.protocols),
             "attacks": [
@@ -204,9 +168,7 @@ class Report:
         logger.info(f"Grader result saved to {filename}")
 
     def generate(self, param: str) -> None:
-        """
-        Prepare the chart (param="graph") or the table (param="array")
-        """
+        """Prepare the chart (param="graph") or the table (param="array")."""
         if param == "graph":
             self.graph = save_graph(self.capture.protocols)
         elif param == "array":

@@ -23,16 +23,11 @@ class Capture:
         self.summary = ""
 
     def open_socket(self) -> None:
-        """
-        Open the capture socket: the only step that needs root privileges
-        """
+        """Open the capture socket: the only step that needs root."""
         if self.pcap_file is None:
             self.listen_socket = conf.L2listen(iface=self.interface)
 
     def capture_traffic(self) -> None:
-        """
-        Capture the traffic of an interface (or read the pcap file)
-        """
         if self.pcap_file is not None:
             sniff(offline=self.pcap_file, prn=self.add_packet, store=False)
             logger.info(f"{self.get_packet_count()} packets read from {self.pcap_file}")
@@ -51,42 +46,24 @@ class Capture:
         logger.info(f"{self.get_packet_count()} packets captured")
 
     def add_packet(self, packet: Packet) -> None:
-        """
-        Count and analyse a packet as soon as it arrives, without keeping it in memory
-        """
         self.protocol_counts[get_protocol(packet)] += 1
         self.analyzer.add_packet(packet)
 
     def get_packet_count(self) -> int:
-        """
-        Return the number of captured packets
-        """
         return sum(self.protocol_counts.values())
 
     def get_source(self) -> str:
-        """
-        Return the listened interface or the read pcap file
-        """
         return f"file {self.pcap_file}" if self.pcap_file is not None else f"interface {self.interface}"
 
     def sort_network_protocols(self) -> dict:
-        """
-        Return the captured protocols, from the most used to the least used
-        """
         all_protocols = self.get_all_protocols()
         return dict(sorted(all_protocols.items(), key=lambda item: item[1], reverse=True))
 
     def get_all_protocols(self) -> dict:
-        """
-        Return each captured protocol with its packet count
-        """
         return dict(self.protocol_counts)
 
     def analyse(self) -> None:
-        """
-        Analyse the captured traffic: sort the protocols, report the attacks
-        (type, protocol, attacker IP/MAC) and the marker, then build the summary
-        """
+        """Sort protocols, collect attacks and the marker, then build the summary."""
         self.protocols = self.sort_network_protocols()
         for protocol, count in self.protocols.items():
             logger.info(f"{protocol}: {count} packets")
@@ -107,9 +84,6 @@ class Capture:
         return self.summary
 
     def _gen_summary(self) -> str:
-        """
-        Build the capture's text summary
-        """
         total = sum(self.protocols.values())
         if total == 0:
             return f"No packet captured ({self.get_source()})."
@@ -122,9 +96,6 @@ class Capture:
         return summary + self._gen_attacks_summary()
 
     def _gen_attacks_summary(self) -> str:
-        """
-        Build the part of the summary about the traffic's legitimacy
-        """
         if not self.attacks:
             return "No attack detected, all good."
         attack_names = ", ".join(attack.name for attack in self.attacks)

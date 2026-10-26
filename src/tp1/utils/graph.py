@@ -30,12 +30,6 @@ BAR_HEIGHT_PX = 34
 
 
 def create_graph(protocols: dict) -> pygal.HorizontalBar:
-    """
-    Create a horizontal bar chart of the packet count per protocol
-
-    :param protocols: {protocol: packet count}
-    :return: pygal chart
-    """
     graph = pygal.HorizontalBar(
         style=GRAPH_STYLE,
         title="Packets per protocol",
@@ -53,12 +47,6 @@ def create_graph(protocols: dict) -> pygal.HorizontalBar:
 
 
 def save_graph(protocols: dict) -> str:
-    """
-    Save the pygal chart as SVG, to open in the browser (the graphical interface)
-
-    :param protocols: {protocol: packet count}
-    :return: path of the SVG file
-    """
     create_graph(protocols).render_to_file(GRAPH_SVG)
     logger.info(f"Graph saved to {GRAPH_SVG}")
     return GRAPH_SVG

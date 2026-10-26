@@ -27,13 +27,6 @@ def hello_world() -> str:
 
 
 def parse_interface_choice(choice: str, interfaces: list[str]) -> str | None:
-    """
-    Turn the user's input into an interface name
-
-    :param choice: interface number or name, empty for the default interface
-    :param interfaces: available interfaces
-    :return: interface name, None if the input matches no interface
-    """
     choice = choice.strip()
     if choice == "":
         return str(conf.iface)
@@ -45,19 +38,11 @@ def parse_interface_choice(choice: str, interfaces: list[str]) -> str | None:
 
 
 def use_default_interface() -> str:
-    """
-    Return scapy's default interface
-    """
     logger.info(f"No input available, default interface: {conf.iface}")
     return str(conf.iface)
 
 
 def choose_interface() -> str:
-    """
-    List the network interfaces and ask which one to listen on, until a valid choice is given
-
-    :return: network interface
-    """
     interfaces = get_if_list()
     for index, interface in enumerate(interfaces):
         logger.info(f"{index}: {interface}")
@@ -76,12 +61,7 @@ def choose_interface() -> str:
 
 
 def get_protocol(packet: Packet) -> str:
-    """
-    Return a packet's most specific protocol (Ether / IP / UDP / DNS -> "DNS")
-
-    :param packet: packet captured with scapy
-    :return: protocol name, "Other" if the packet only holds raw data
-    """
+    """Most specific protocol of a packet (Ether/IP/UDP/DNS -> "DNS"); "Other" for raw data only."""
     protocol_layers = [layer for layer in packet.layers() if layer not in PAYLOAD_LAYERS]
     if not protocol_layers:
         return "Other"
@@ -89,21 +69,11 @@ def get_protocol(packet: Packet) -> str:
 
 
 def format_share(count: int, total: int) -> str:
-    """
-    Return a packet count's share of the total
-
-    :param count: packet count
-    :param total: total packet count
-    :return: percentage, e.g. "25.0 %"
-    """
     share = count / total * 100 if total else 0.0
     return f"{share:.1f} %"
 
 
 def get_sudo_user() -> pwd.struct_passwd | None:
-    """
-    Return the account of the user who ran sudo, None without sudo
-    """
     sudo_uid = os.environ.get("SUDO_UID")
     if sudo_uid is None:
         return None
@@ -111,9 +81,7 @@ def get_sudo_user() -> pwd.struct_passwd | None:
 
 
 def give_log_files_to(user: pwd.struct_passwd) -> None:
-    """
-    Hand back to the user the log files root created at startup
-    """
+    """Give back to the sudo user the log files root created at startup."""
     for handler in logging.getLogger().handlers:
         if isinstance(handler, logging.FileHandler):
             # Without follow_symlinks=False, a link app.log -> /etc/shadow would give its target to the user
@@ -121,9 +89,7 @@ def give_log_files_to(user: pwd.struct_passwd) -> None:
 
 
 def drop_privileges() -> None:
-    """
-    Permanently give up root privileges to switch back to the user who ran sudo
-    """
+    """Permanently drop root to switch back to the user who ran sudo."""
     if os.geteuid() != 0:
         return
     user = get_sudo_user()

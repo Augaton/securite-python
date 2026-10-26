@@ -11,21 +11,12 @@ PCAP_EXTENSIONS = (".pcap", ".pcapng", ".cap")
 
 
 def find_pcap_file(candidates: list[str]) -> str | None:
-    """
-    Find the capture file among the arguments (a .pcap preferably)
-
-    :param candidates: arguments that may point to the file
-    :return: path of the file, None if no argument is a file
-    """
     files = [candidate for candidate in candidates if Path(candidate).is_file()]
     captures = [file for file in files if file.lower().endswith(PCAP_EXTENSIONS)]
     return next(iter(captures + files), None)
 
 
 def build_parser() -> argparse.ArgumentParser:
-    """
-    Describe the command-line options
-    """
     parser = argparse.ArgumentParser(description="TP1: network capture, attack detection and report")
     parser.add_argument("pcap_file", nargs="?", help="pcap file to analyse (same as --pcap)")
     parser.add_argument(
@@ -38,12 +29,6 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def parse_arguments(arguments: list[str] | None = None) -> argparse.Namespace:
-    """
-    Read the command-line options, ignoring the unknown ones
-
-    :param arguments: options to read, None for the ones passed to the program
-    :return: options (timeout and pcap)
-    """
     parser = build_parser()
     options, unknown_arguments = parser.parse_known_args(arguments)
     explicit_pcap = options.pcap
