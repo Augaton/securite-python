@@ -214,8 +214,8 @@ def test_when_save_json_then_file_has_the_format_expected_by_the_grader(tmp_path
     assert json.loads(filename.read_text()) == {
         "protocols": {"ARP": 3, "TCP": 1},
         "attacks": [
-            {"type": "arp_spoofing", "attacker": "aa:bb:cc:dd:ee:ff"},
-            {"type": "syn_scan", "attacker": "aa:bb:cc:dd:ee:ff"},
+            {"type": "arp_spoofing", "attacker": "192.168.1.66"},
+            {"type": "syn_scan", "attacker": "192.168.1.66"},
         ],
         "flag": "ESGI{abc}",
     }

@@ -37,9 +37,8 @@ class Attack:
     details: str
 
     def get_attacker(self) -> str:
-        """Identifiant de l'attaquant : son IP pour l'injection SQL (session réelle), sa MAC sinon
-        (ARP et scan de ports usurpent couramment l'adresse source)."""
-        return self.attacker_ip if self.attack_type == "sql_injection" else self.attacker_mac
+        """Identifiant de l'attaquant : son IP réelle, sa MAC si aucune IP ne lui est connue."""
+        return self.attacker_mac if self.attacker_ip == UNKNOWN else self.attacker_ip
 
     def describe(self) -> str:
         return (
@@ -120,7 +119,7 @@ class TrafficAnalyzer:
         self.syn_targets_by_ip = defaultdict(set)
         self.syn_mac_by_ip = {}
         self.sql_injections = {}
-        self.flag = None
+        self.flag_by_ip = {}  # premier marqueur envoyé par chaque IP source, dans l'ordre d'arrivée
 
     def add_packet(self, packet: Packet) -> None:
         source_ip = get_source_ip(packet)
@@ -130,8 +129,10 @@ class TrafficAnalyzer:
             self.add_arp(packet[ARP])
         if packet.haslayer(TCP):
             self.add_tcp(packet, source_ip)
-        if self.flag is None:
-            self.flag = search_flag(packet)
+        if source_ip not in self.flag_by_ip:
+            flag = search_flag(packet)
+            if flag is not None:
+                self.flag_by_ip[source_ip] = flag
 
     def add_arp(self, arp: ARP) -> None:
         """Note l'annonce ARP "l'IP psrc est à la MAC hwsrc" (0.0.0.0 : machine sans IP, ignorée)."""
@@ -150,6 +151,22 @@ class TrafficAnalyzer:
             injection = find_sql_injection(packet, source_ip)
             if injection is not None:
                 self.sql_injections[source_ip] = injection
+
+    def get_flag(self) -> str | None:
+        """Le marqueur envoyé par l'auteur d'une injection SQL, sinon le premier vu : un marqueur
+        envoyé plus tôt par une autre machine peut être un leurre."""
+        for attacker_ip in self.sql_injections:
+            if attacker_ip in self.flag_by_ip:
+                return self.flag_by_ip[attacker_ip]
+        return next(iter(self.flag_by_ip.values()), None)
+
+    def get_real_ip(self, mac: str, default: str) -> str:
+        """Vraie IP d'une MAC : celle de sa session TCP d'injection SQL, impossible à usurper à
+        l'aveugle, alors que l'IP source d'un scan ou d'une annonce ARP l'est couramment."""
+        for injection in self.sql_injections.values():
+            if injection.attacker_mac == mac:
+                return injection.attacker_ip
+        return default
 
     def get_attacks(self) -> list[Attack]:
         ip_attacks = self.get_syn_scan_attacks() + self.get_sql_injection_attacks()
@@ -184,7 +201,7 @@ class TrafficAnalyzer:
                 attack_type="arp_spoofing",
                 name="ARP spoofing",
                 protocol="ARP",
-                attacker_ip=self.ip_by_mac.get(mac, UNKNOWN),
+                attacker_ip=self.get_real_ip(mac, self.ip_by_mac.get(mac, UNKNOWN)),
                 attacker_mac=mac,
                 details=f"se fait passer pour {', '.join(sorted(spoofed_ips))}",
             )
@@ -197,7 +214,7 @@ class TrafficAnalyzer:
                 attack_type="syn_scan",
                 name="Scan SYN",
                 protocol="TCP",
-                attacker_ip=ip,
+                attacker_ip=self.get_real_ip(self.syn_mac_by_ip[ip], ip),
                 attacker_mac=self.syn_mac_by_ip[ip],
                 details=f"{len(ports)} ports visés sur {', '.join(sorted(self.syn_targets_by_ip[ip]))}",
             )
