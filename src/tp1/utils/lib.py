@@ -26,10 +26,10 @@ from scapy.all import (
 
 from src.tp1.utils.config import logger
 
-# Raw data, plus the original packet headers copied into an ICMP error (still an ICMP packet)
+# données brutes, et en-têtes du paquet d'origine recopiés dans une erreur ICMP (qui reste un paquet ICMP)
 PAYLOAD_LAYERS = (Raw, Padding, IPerror, IPerror6, TCPerror, UDPerror, ICMPerror)
 
-# Scapy layer -> reported protocol name, in encapsulation order (link to application)
+# couche scapy -> nom de protocole affiché, dans l'ordre d'encapsulation
 PROTOCOL_LAYERS = (
     (Ether, "Ethernet"),
     (ARP, "ARP"),
@@ -40,7 +40,7 @@ PROTOCOL_LAYERS = (
     (UDP, "UDP"),
     (DNS, "DNS"),
 )
-# Scapy does not decode HTTP by default, so we spot it from the cleartext payload
+# scapy ne décode pas HTTP par défaut, on le repère donc sur le début de la charge en clair
 HTTP_SIGNATURES = (b"GET ", b"POST ", b"PUT ", b"PATCH ", b"DELETE ", b"HEAD ", b"OPTIONS ", b"HTTP/")
 
 
@@ -60,42 +60,44 @@ def parse_interface_choice(choice: str, interfaces: list[str]) -> str | None:
 
 
 def use_default_interface() -> str:
-    logger.info(f"No input available, default interface: {conf.iface}")
+    logger.info(f"Pas de saisie possible, interface par défaut : {conf.iface}")
     return str(conf.iface)
 
 
 def choose_interface() -> str:
     interfaces = get_if_list()
     for index, interface in enumerate(interfaces):
-        logger.info(f"{index}: {interface}")
+        logger.info(f"{index} : {interface}")
 
     if sys.stdin is None or not sys.stdin.isatty():
         return use_default_interface()
     while True:
         try:
-            choice = input(f"Interface number to listen on (Enter = {conf.iface}): ")
+            choice = input(f"Numéro de l'interface à écouter (Entrée = {conf.iface}) : ")
         except EOFError:
             return use_default_interface()
         interface = parse_interface_choice(choice, interfaces)
         if interface is not None:
             return interface
-        logger.warning(f"Invalid choice: {choice!r}")
+        logger.warning(f"Choix invalide : {choice!r}")
 
 
 def get_protocol(packet: Packet) -> str:
-    """Most specific protocol of a packet (Ether/IP/UDP/DNS -> "DNS"); "Other" for raw data only."""
+    """Protocole le plus précis d'un paquet (Ether / IP / UDP / DNS -> "DNS") ; "Autre" si données brutes."""
     protocol_layers = [layer for layer in packet.layers() if layer not in PAYLOAD_LAYERS]
     if not protocol_layers:
-        return "Other"
+        return "Autre"
     return protocol_layers[-1].__name__
 
 
 def is_http(packet: Packet) -> bool:
-    return packet.haslayer(TCP) and packet.haslayer(Raw) and bytes(packet[Raw].load).startswith(HTTP_SIGNATURES)
+    return (
+        packet.haslayer(TCP) and packet.haslayer(Raw) and bytes(packet[Raw].load).startswith(HTTP_SIGNATURES)
+    )
 
 
 def get_protocols(packet: Packet) -> list[str]:
-    """Every protocol present in a packet, e.g. Ether/IP/TCP/HTTP -> [Ethernet, IP, TCP, HTTP]."""
+    """Tous les protocoles présents dans un paquet, ex : Ether/IP/TCP/HTTP -> [Ethernet, IP, TCP, HTTP]."""
     protocols = [name for layer, name in PROTOCOL_LAYERS if packet.haslayer(layer)]
     if is_http(packet):
         protocols.append("HTTP")
@@ -115,28 +117,28 @@ def get_sudo_user() -> pwd.struct_passwd | None:
 
 
 def give_log_files_to(user: pwd.struct_passwd) -> None:
-    """Give back to the sudo user the log files root created at startup."""
+    """Rend à l'utilisateur les fichiers de log créés par root au démarrage."""
     for handler in logging.getLogger().handlers:
         if isinstance(handler, logging.FileHandler):
-            # Without follow_symlinks=False, a link app.log -> /etc/shadow would give its target to the user
+            # sans follow_symlinks=False, un lien app.log -> /etc/shadow donnerait sa cible à l'utilisateur
             os.chown(handler.baseFilename, user.pw_uid, user.pw_gid, follow_symlinks=False)
 
 
 def drop_privileges() -> None:
-    """Permanently drop root to switch back to the user who ran sudo."""
+    """Abandonne définitivement les droits root pour repasser sous l'utilisateur qui a lancé sudo."""
     if os.geteuid() != 0:
         return
     user = get_sudo_user()
     if user is None:
-        logger.warning("Running as root without sudo: no user to drop to, everything runs as root")
+        logger.warning("Lancé en root sans sudo : pas d'utilisateur vers qui repasser, tout tourne en root")
         return
     give_log_files_to(user)
-    # Groups and gid first: once the uid has changed, we may no longer modify them
+    # groupes et gid d'abord : une fois l'uid changé, on n'a plus le droit de les modifier
     os.initgroups(user.pw_name, user.pw_gid)
     os.setgid(user.pw_gid)
     os.setuid(user.pw_uid)
     if 0 in os.getresuid():
-        message = "Could not drop root privileges"
+        message = "Impossible d'abandonner les droits root"
         raise RuntimeError(message)
     os.environ["HOME"] = user.pw_dir
-    logger.info(f"Root privileges dropped, continuing as {user.pw_name}")
+    logger.info(f"Droits root abandonnés, la suite tourne en tant que {user.pw_name}")

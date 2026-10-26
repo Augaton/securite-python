@@ -3,28 +3,28 @@ import json
 from src.tp2.main import main
 
 
-def test_given_samples_dir_when_main_then_one_triage_json_per_sample(tmp_path):
-    # Given
-    (tmp_path / "a.bin").write_bytes(b"\x7fELF ESGI{real_aaa} http://c2-1.example.test/gate.php")
-    (tmp_path / "b.bin").write_bytes(b"\x7fELF ESGI{real_bbb} dropper")
-    (tmp_path / "GROUP.txt").write_text("grp")  # aux file, must be skipped
+def test_main_writes_one_sha256_json_per_sample(tmp_path, monkeypatch):
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+    samples = tmp_path / "samples"
+    out = tmp_path / "out"
+    samples.mkdir()
+    (samples / "a.bin").write_bytes(b"\x7fELF http://c2-1.example.test/gate.php ESGI{real_a}")
+    (samples / "GROUP.txt").write_text("grp")  # fichier annexe, doit être ignoré
 
-    # When
-    main([str(tmp_path)])
+    main(["--samples", str(samples), "--out", str(out)])
 
-    # Then
-    assert (tmp_path / "a.bin.triage.json").exists()
-    assert (tmp_path / "b.bin.triage.json").exists()
-    assert not (tmp_path / "GROUP.txt.triage.json").exists()
-
-    report = json.loads((tmp_path / "a.bin.triage.json").read_text())
-    assert report["flag"] == "ESGI{real_aaa}"
-    assert "suspicious_c2_http" in report["yara"]
+    triage = out / "a.bin.triage.json"
+    assert triage.exists()
+    report = json.loads(triage.read_text(encoding="utf-8"))
+    assert report["flag"] == "ESGI{real_a}"
+    assert (out / f"{report['sha256']}.json").exists()  # format <sha256>.json du sujet
+    assert "ESGI_C2_HTTP_Beacon" in report["yara_matches"]
 
 
-def test_given_no_sample_when_main_then_warn_without_crashing(tmp_path, caplog):
-    # When
-    main([str(tmp_path)])
+def test_iter_samples_skips_aux_files(tmp_path):
+    from src.tp2.main import iter_samples
 
-    # Then
-    assert "No sample found to triage" in caplog.text
+    (tmp_path / "a.bin").write_bytes(b"x")
+    (tmp_path / "GROUP.txt").write_text("grp")
+    (tmp_path / "notes.json").write_text("{}")
+    assert [p.name for p in iter_samples(str(tmp_path))] == ["a.bin"]

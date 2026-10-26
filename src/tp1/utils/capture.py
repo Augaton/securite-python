@@ -24,27 +24,27 @@ class Capture:
         self.summary = ""
 
     def open_socket(self) -> None:
-        """Open the capture socket: the only step that needs root."""
+        """Ouvre le socket de capture : la seule étape qui a besoin des droits root."""
         if self.pcap_file is None:
             self.listen_socket = conf.L2listen(iface=self.interface)
 
     def capture_traffic(self) -> None:
         if self.pcap_file is not None:
             sniff(offline=self.pcap_file, prn=self.add_packet, store=False)
-            logger.info(f"{self.get_packet_count()} packets read from {self.pcap_file}")
+            logger.info(f"{self.get_packet_count()} paquets lus dans {self.pcap_file}")
             return
         if self.listen_socket is None:
             self.open_socket()
         logger.info(
-            f"Capturing on {self.interface} for {self.timeout} seconds (Ctrl+C to stop early)"
+            f"Capture sur {self.interface} pendant {self.timeout} secondes (Ctrl+C pour arrêter avant)"
         )
         try:
-            # sniff stops cleanly on Ctrl+C, the packets already received stay counted
+            # sniff s'arrête proprement sur Ctrl+C, les paquets déjà reçus restent comptés
             sniff(opened_socket=self.listen_socket, timeout=self.timeout, prn=self.add_packet, store=False)
         finally:
             self.listen_socket.close()
             self.listen_socket = None
-        logger.info(f"{self.get_packet_count()} packets captured")
+        logger.info(f"{self.get_packet_count()} paquets capturés")
 
     def add_packet(self, packet: Packet) -> None:
         self.packet_count += 1
@@ -55,9 +55,10 @@ class Capture:
         return self.packet_count
 
     def get_source(self) -> str:
-        return f"file {self.pcap_file}" if self.pcap_file is not None else f"interface {self.interface}"
+        return f"fichier {self.pcap_file}" if self.pcap_file is not None else f"interface {self.interface}"
 
     def sort_network_protocols(self) -> dict:
+        """Protocoles capturés, du plus utilisé au moins utilisé."""
         all_protocols = self.get_all_protocols()
         return dict(sorted(all_protocols.items(), key=lambda item: item[1], reverse=True))
 
@@ -65,20 +66,20 @@ class Capture:
         return dict(self.protocol_counts)
 
     def analyse(self) -> None:
-        """Sort protocols, collect attacks and the marker, then build the summary."""
+        """Trie les protocoles, relève les attaques et le marqueur, puis construit le résumé."""
         self.protocols = self.sort_network_protocols()
         for protocol, count in self.protocols.items():
-            logger.info(f"{protocol}: {count} packets")
+            logger.info(f"{protocol} : {count} paquets")
 
         self.attacks = self.analyzer.get_attacks()
         for attack in self.attacks:
-            logger.warning(f"Attack attempt: {attack.describe()}")
+            logger.warning(f"Tentative d'attaque : {attack.describe()}")
         if not self.attacks:
-            logger.info("No attack detected, all good")
+            logger.info("Aucune attaque détectée, tout va bien")
 
-        self.flag = self.analyzer.flag
+        self.flag = self.analyzer.get_flag()
         if self.flag is not None:
-            logger.info(f"Marker found: {self.flag}")
+            logger.info(f"Marqueur trouvé : {self.flag}")
 
         self.summary = self._gen_summary()
 
@@ -87,17 +88,17 @@ class Capture:
 
     def _gen_summary(self) -> str:
         if self.packet_count == 0:
-            return f"No packet captured ({self.get_source()})."
+            return f"Aucun paquet capturé ({self.get_source()})."
 
         most_used = next(iter(self.protocols))
         summary = (
-            f"{self.packet_count} packets were analysed ({self.get_source()}). "
-            f"The most used protocol is {most_used} with {self.protocols[most_used]} packets. "
+            f"{self.packet_count} paquets ont été analysés ({self.get_source()}). "
+            f"Le protocole le plus utilisé est {most_used} avec {self.protocols[most_used]} paquets. "
         )
         return summary + self._gen_attacks_summary()
 
     def _gen_attacks_summary(self) -> str:
         if not self.attacks:
-            return "No attack detected, all good."
+            return "Aucune attaque détectée, tout va bien."
         attack_names = ", ".join(attack.name for attack in self.attacks)
-        return f"{len(self.attacks)} attack attempt(s) detected: {attack_names}."
+        return f"{len(self.attacks)} tentative(s) d'attaque détectée(s) : {attack_names}."
