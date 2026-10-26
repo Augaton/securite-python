@@ -96,8 +96,7 @@ def test_given_syn_to_many_ports_when_detect_syn_scan_then_scanner_is_found():
     assert len(result) == 1
     attack = result[0]
     assert (attack.attack_type, attack.protocol, attack.attacker_ip) == ("syn_scan", "TCP", ATTACKER_IP)
-    # un scan usurpe souvent son IP source : on identifie le scanner par sa MAC
-    assert attack.get_attacker() == ATTACKER_MAC
+    assert attack.get_attacker() == ATTACKER_IP
     assert attack.attacker_mac == ATTACKER_MAC
     assert attack.details == f"20 ports visés sur {VICTIM_IP}"
 
@@ -209,15 +208,45 @@ def test_given_marker_in_traffic_when_find_flag_then_return_it(payload):
     packets = [http(b"GET / HTTP/1.1\r\n\r\n"), http(payload)]
 
     # When
-    result = analyse_packets(packets).flag
+    result = analyse_packets(packets).get_flag()
 
     # Then
     assert result == "ESGI{s3ed_b1n0me}"
 
 
+def test_given_decoy_marker_before_injection_when_find_flag_then_return_the_attackers_one():
+    # Given : un marqueur leurre envoyé plus tôt par une autre machine
+    decoy = Ether(src=VICTIM_MAC) / IP(src=VICTIM_IP, dst=GATEWAY_IP) / TCP() / Raw(b"ESGI{leurre}")
+    injection = http(b"GET /login?user=admin' OR 1=1-- &token=ESGI{vrai} HTTP/1.1\r\n\r\n")
+
+    # When
+    result = analyse_packets([decoy, injection]).get_flag()
+
+    # Then
+    assert result == "ESGI{vrai}"
+
+
+def test_given_one_mac_spoofing_source_ips_when_detect_attacks_then_all_go_to_its_injection_ip():
+    # Given : une seule MAC qui scanne depuis une IP usurpée, ARP-spoofe, puis injecte depuis sa vraie IP
+    spoofed_ip = "192.168.1.99"
+    scan = [syn(spoofed_ip, VICTIM_IP, port) for port in range(1, 21)]
+    arp = [arp_reply(GATEWAY_IP, ATTACKER_MAC), arp_reply(VICTIM_IP, ATTACKER_MAC)]
+    injection = [http(b"GET /?id=1' OR '1'='1 HTTP/1.1\r\n\r\n")]
+
+    # When
+    result = analyse_packets(scan + arp + injection).get_attacks()
+
+    # Then
+    assert {(attack.attack_type, attack.get_attacker()) for attack in result} == {
+        ("arp_spoofing", ATTACKER_IP),
+        ("syn_scan", ATTACKER_IP),
+        ("sql_injection", ATTACKER_IP),
+    }
+
+
 def test_given_no_marker_when_find_flag_then_return_none():
     # When
-    result = analyse_packets([http(b"GET / HTTP/1.1\r\n\r\n")]).flag
+    result = analyse_packets([http(b"GET / HTTP/1.1\r\n\r\n")]).get_flag()
 
     # Then
     assert result is None
@@ -270,7 +299,7 @@ def test_given_marker_with_control_characters_when_find_flag_then_it_is_rejected
     packets = [http(b"GET /?q=ESGI{\x1b]0;pwned\x07} HTTP/1.1\r\n\r\n")]
 
     # When
-    result = analyse_packets(packets).flag
+    result = analyse_packets(packets).get_flag()
 
     # Then
     assert result is None
@@ -282,7 +311,7 @@ def test_given_packet_full_of_marker_starts_when_find_flag_then_search_stays_fas
 
     # When
     start = time.perf_counter()
-    result = analyse_packets(packets).flag
+    result = analyse_packets(packets).get_flag()
 
     # Then
     assert result is None

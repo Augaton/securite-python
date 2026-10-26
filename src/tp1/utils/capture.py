@@ -77,7 +77,7 @@ class Capture:
         if not self.attacks:
             logger.info("Aucune attaque détectée, tout va bien")
 
-        self.flag = self.analyzer.flag
+        self.flag = self.analyzer.get_flag()
         if self.flag is not None:
             logger.info(f"Marqueur trouvé : {self.flag}")
 
