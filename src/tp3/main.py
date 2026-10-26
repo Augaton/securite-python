@@ -1,25 +1,28 @@
-from src.tp3.utils.config import logger
-from src.tp3.utils.session import Session
+import argparse
+
+from .utils.config import logger
+from .utils.network import run_network_phase
+from .utils.session import WebPhase
 
 
-def main():
-    logger.info("Starting TP3")
+def main(argv: list[str] | None = None) -> None:
+    parser = argparse.ArgumentParser(description="TP3 : chaine d'attaque web (fuzzing + captcha) puis reseau")
+    parser.add_argument("--target", required=True, help="URL de la cible web, ex. http://localhost:8080")
+    parser.add_argument(
+        "--wordlist", default=None, help="wordlist de fuzzing (defaut : wordlist.txt embarquee)"
+    )
+    args = parser.parse_args(argv)
 
-    ip = "31.220.95.27:9002"
-    challenges = {"1": f"http://{ip}/captcha1/", "2": f"http://{ip}/captcha2/"}
+    logger.info(f"cible : {args.target}")
 
-    for i in challenges:
-        url = challenges[i]
-        session = Session(url)
-        session.prepare_request()
-        session.submit_request()
+    # Phase web -> flag1, plus l'adresse TCP et la cle d'encodage a utiliser ensuite
+    web = WebPhase(args.target, wordlist=args.wordlist)
+    data = web.run()
+    print(f"[+] FLAG1: {data['flag1']}")
 
-        while not session.process_response():
-            session.prepare_request()
-            session.submit_request()
-
-        logger.info("Smell good !")
-        logger.info(f"Flag for {url} : {session.get_flag()}")
+    # Phase reseau -> drapeau final
+    final = run_network_phase(data["host"], data["port"], data["key"])
+    print(f"[+] FLAG_FINAL: {final}")
 
 
 if __name__ == "__main__":
