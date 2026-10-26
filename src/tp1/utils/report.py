@@ -40,7 +40,7 @@ class Report:
 
     def concat_report(self) -> FPDF:
         """
-        Concat all data in report (titre, résumé, tableau, légitimité du trafic et graphique)
+        Assemble le PDF complet : titre, résumé, tableau, légitimité du trafic et graphique
         """
         pdf = FPDF()
         pdf.set_margins(MARGIN_MM, MARGIN_MM)
@@ -179,9 +179,7 @@ class Report:
 
     def save(self, filename: str) -> None:
         """
-        Save report in a file
-        :param filename: nom du fichier PDF
-        :return:
+        Génère le PDF et l'enregistre dans filename
         """
         pdf = self.concat_report()
         pdf.output(filename)
@@ -207,7 +205,7 @@ class Report:
 
     def generate(self, param: str) -> None:
         """
-        Generate graph and array
+        Prépare le graphique (param="graph") ou le tableau (param="array")
         """
         if param == "graph":
             self.graph = save_graph(self.capture.protocols)

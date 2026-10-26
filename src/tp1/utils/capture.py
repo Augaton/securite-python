@@ -31,7 +31,7 @@ class Capture:
 
     def capture_traffic(self) -> None:
         """
-        Capture network traffic from an interface (ou lit le fichier pcap)
+        Capture le trafic d'une interface (ou lit le fichier pcap)
         """
         if self.pcap_file is not None:
             sniff(offline=self.pcap_file, prn=self.add_packet, store=False)
@@ -71,25 +71,21 @@ class Capture:
 
     def sort_network_protocols(self) -> dict:
         """
-        Sort and return all captured network protocols (du plus utilisé au moins utilisé)
+        Retourne les protocoles capturés, du plus utilisé au moins utilisé
         """
         all_protocols = self.get_all_protocols()
         return dict(sorted(all_protocols.items(), key=lambda item: item[1], reverse=True))
 
     def get_all_protocols(self) -> dict:
         """
-        Return all protocols captured with total packets number
+        Retourne chaque protocole capturé avec son nombre de paquets
         """
         return dict(self.protocol_counts)
 
     def analyse(self) -> None:
         """
-        Analyse all captured data and return statement
-        Si un trafic est illégitime (exemple : Injection SQL, ARP Spoofing, etc)
-        a. Noter la tentative d'attaque.
-        b. Relever le protocole ainsi que l'adresse réseau/physique de l'attaquant.
-        c. (FACULTATIF) Opérer le blocage de la machine attaquante.
-        Sinon afficher que tout va bien
+        Analyse le trafic capturé : trie les protocoles, relève les attaques
+        (type, protocole, IP/MAC de l'attaquant) et le marqueur, puis construit le résumé
         """
         self.protocols = self.sort_network_protocols()
         for protocol, count in self.protocols.items():
@@ -108,15 +104,11 @@ class Capture:
         self.summary = self._gen_summary()
 
     def get_summary(self) -> str:
-        """
-        Return summary
-        :return:
-        """
         return self.summary
 
     def _gen_summary(self) -> str:
         """
-        Generate summary
+        Construit le résumé textuel de la capture
         """
         total = sum(self.protocols.values())
         if total == 0:

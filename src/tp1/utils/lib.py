@@ -23,11 +23,6 @@ PAYLOAD_LAYERS = (Raw, Padding, IPerror, IPerror6, TCPerror, UDPerror, ICMPerror
 
 
 def hello_world() -> str:
-    """
-    Hello world function
-
-    :return: "hello world"
-    """
     return "hello world"
 
 
