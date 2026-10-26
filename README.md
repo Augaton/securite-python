@@ -34,25 +34,27 @@ sudo "$(poetry env info --path)/bin/tp1"
 
 Options : `--timeout 120` (durée de capture, 60 s par défaut), `--pcap fichier.pcap` / `-r fichier.pcap`.
 
-**Sorties** (dans le dossier courant) : `report.pdf`, `report.json` (résultat du correcteur), `graph.svg`,
-`app.log`.
+**Sorties** : `report.pdf`, `report.json` (résultat du correcteur) et `graph.svg`, écrits à côté du pcap
+analysé (dans le dossier courant en capture live). Les logs vont aussi dans `app.log`.
 
 **Détections** : ARP spoofing, scan SYN, injection SQL, et le drapeau `ESGI{...}`. Les protocoles de
 chaque paquet sont relevés couche par couche (Ethernet, IP, TCP, UDP, ICMP, DNS, ARP, HTTP).
 
 ## TP2 — Triage de malwares
 
-Pour chaque échantillon, écrit un `<échantillon>.triage.json` contenant : SHA-256 et MD5, entropie de
-Shannon (repère les fichiers packés/chiffrés), type de fichier, IOC (URL, IPv4, domaines, emails), règles
-YARA déclenchées et le vrai drapeau `ESGI{...}` (les faux drapeaux `..._decoy_..` sont ignorés).
+Analyse un échantillon et écrit, à côté de lui, un `<échantillon>.triage.json` (et `.triage.pdf`)
+contenant : SHA-256 et MD5, entropie de Shannon (repère les fichiers packés/chiffrés), type de fichier,
+IOC (URL, IPv4, domaines, emails), format/sections/imports du binaire (lief), règles YARA déclenchées et
+le vrai drapeau `ESGI{...}` (les faux drapeaux `..._decoy_..` sont ignorés).
 
 ```bash
-python src/tp2/main.py dossier_des_echantillons
+python src/tp2/main.py -f echantillon.bin
 ```
 
-Sans argument, analyse le dossier courant (puis un sous-dossier `student/` s'il existe).
+Option `--llm openrouter|ollama` pour un verdict enrichi par un LLM (ignoré sans clé API ; les features
+extraites sont envoyées, jamais le binaire).
 
-Les règles sont dans `src/tp2/rules/malware.yar`. YARA n'est pas obligatoire : si `yara-python` est
+Les règles sont dans `src/tp2/rules/course_rules.yar`. YARA n'est pas obligatoire : si `yara-python` est
 installé il est utilisé, sinon un moteur de repli en Python pur applique les mêmes règles.
 
 ## Tests et pre-commit
@@ -71,6 +73,6 @@ le projet n'est pas installé ou que son dossier est en lecture seule.
 src/
   config.py          # logging + chargement du .env
   tp1/               # capture, détection, rapport PDF/JSON, graphique
-  tp2/               # triage : hash, entropie, IOC, YARA, drapeau
+  tp2/               # triage : Sample, YaraScanner, Triage, Report, LLM (+ rules/)
 tests/               # tests pytest par TP
 ```
