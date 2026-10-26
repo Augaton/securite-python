@@ -5,7 +5,7 @@ from src.tp1.utils.config import logger
 
 GRAPH_SVG = "graph.svg"
 
-# grille en trait plein : pygal la dessine en pointillés par défaut
+# Solid grid lines: pygal draws them dashed by default
 GRAPH_STYLE = Style(
     background="#ffffff",
     plot_background="#ffffff",
@@ -30,35 +30,23 @@ BAR_HEIGHT_PX = 34
 
 
 def create_graph(protocols: dict) -> pygal.HorizontalBar:
-    """
-    Crée un histogramme horizontal du nombre de paquets par protocole
-
-    :param protocols: {protocole: nombre de paquets}
-    :return: graphique pygal
-    """
     graph = pygal.HorizontalBar(
         style=GRAPH_STYLE,
-        title="Nombre de paquets par protocole",
+        title="Packets per protocol",
         show_legend=False,
         height=BASE_HEIGHT_PX + BAR_HEIGHT_PX * max(len(protocols), 1),
-        no_data_text="Aucun paquet capturé",
-        order_min=0,  # graduations entières : on compte des paquets
-        js=[],  # pas de script chargé depuis internet
+        no_data_text="No packet captured",
+        order_min=0,  # integer ticks: we are counting packets
+        js=[],  # no script loaded from the internet
     )
-    # pygal dessine la première barre en bas : ordre croissant pour avoir la plus grande en haut
+    # pygal draws the first bar at the bottom: ascending order to get the largest on top
     ordered_protocols = sorted(protocols.items(), key=lambda item: item[1])
     graph.x_labels = [protocol for protocol, _ in ordered_protocols]
-    graph.add("Paquets", [count for _, count in ordered_protocols])
+    graph.add("Packets", [count for _, count in ordered_protocols])
     return graph
 
 
 def save_graph(protocols: dict) -> str:
-    """
-    Enregistre le graphique pygal en SVG, à ouvrir dans le navigateur (l'interface graphique)
-
-    :param protocols: {protocole: nombre de paquets}
-    :return: chemin du fichier SVG
-    """
     create_graph(protocols).render_to_file(GRAPH_SVG)
-    logger.info(f"Graphique enregistré dans {GRAPH_SVG}")
+    logger.info(f"Graph saved to {GRAPH_SVG}")
     return GRAPH_SVG

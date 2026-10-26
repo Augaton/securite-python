@@ -8,7 +8,7 @@ from src.tp1.utils.capture import Capture
 
 def feed(capture: Capture, packets: list) -> None:
     """
-    Donne les paquets à la capture un par un, comme le fait sniff pendant une vraie capture
+    Feed the packets to the capture one by one, like sniff does during a real capture
     """
     for packet in packets:
         capture.add_packet(packet)
@@ -50,7 +50,7 @@ def test_given_capture_when_capture_traffic_then_packets_are_saved(mock_conf):
         opened_socket=listen_socket, timeout=60, prn=capture.add_packet, store=False
     )
     listen_socket.close.assert_called_once()
-    assert capture.get_all_protocols() == {"TCP": 1, "ARP": 1}
+    assert capture.get_all_protocols() == {"Ethernet": 2, "IP": 1, "TCP": 1, "ARP": 1}
 
 
 @patch("src.tp1.utils.capture.conf")
@@ -70,7 +70,7 @@ def test_given_error_during_capture_when_capture_traffic_then_socket_is_closed(m
 @patch("src.tp1.utils.capture.conf")
 def test_given_pcap_file_when_open_socket_then_nothing_is_opened(mock_conf, tmp_path):
     # Given
-    capture = Capture(pcap_file=str(tmp_path / "attaque.pcap"))
+    capture = Capture(pcap_file=str(tmp_path / "attack.pcap"))
 
     # When
     capture.open_socket()
@@ -88,7 +88,7 @@ def test_get_all_protocols():
     result = capture.get_all_protocols()
 
     # Then
-    assert result == {"TCP": 2, "DNS": 1}
+    assert result == {"Ethernet": 3, "IP": 3, "TCP": 2, "UDP": 1, "DNS": 1}
 
 
 def test_sort_network_protocols():
@@ -100,7 +100,7 @@ def test_sort_network_protocols():
     result = capture.sort_network_protocols()
 
     # Then
-    assert list(result) == ["TCP", "ARP"]
+    assert list(result) == ["Ethernet", "IP", "TCP", "ARP"]
 
 
 def test_analyse():
@@ -112,7 +112,7 @@ def test_analyse():
     capture.analyse()
 
     # Then
-    assert capture.protocols == {"TCP": 2, "UDP": 1}
+    assert capture.protocols == {"Ethernet": 3, "IP": 3, "TCP": 2, "UDP": 1}
     assert capture.summary != ""
 
 
@@ -131,14 +131,15 @@ def test_get_summary():
 def test_gen_summary():
     # Given
     capture = Capture()
+    capture.packet_count = 4
     capture.protocols = {"TCP": 3, "DNS": 1}
 
     # When
     result = capture._gen_summary()
 
     # Then
-    assert "4 paquets" in result
-    assert "TCP avec 3 paquets" in result
+    assert "4 packets" in result
+    assert "TCP with 3 packets" in result
 
 
 def test_given_no_packet_when_gen_summary_then_say_no_packet():
@@ -149,7 +150,7 @@ def test_given_no_packet_when_gen_summary_then_say_no_packet():
     result = capture._gen_summary()
 
     # Then
-    assert result == "Aucun paquet capturé (interface eth0)."
+    assert result == "No packet captured (interface eth0)."
 
 
 def test_given_arp_spoofing_when_analyse_then_attack_is_noted_in_summary():
@@ -168,7 +169,7 @@ def test_given_arp_spoofing_when_analyse_then_attack_is_noted_in_summary():
 
     # Then
     assert [attack.attack_type for attack in capture.attacks] == ["arp_spoofing"]
-    assert "1 tentative(s) d'attaque détectée(s) : ARP spoofing." in capture.summary
+    assert "1 attack attempt(s) detected: ARP spoofing." in capture.summary
 
 
 def test_given_legit_traffic_when_analyse_then_summary_says_everything_is_fine():
@@ -181,7 +182,7 @@ def test_given_legit_traffic_when_analyse_then_summary_says_everything_is_fine()
 
     # Then
     assert capture.attacks == []
-    assert capture.summary.endswith("Aucune attaque détectée, tout va bien.")
+    assert capture.summary.endswith("No attack detected, all good.")
 
 
 def test_given_marker_in_traffic_when_analyse_then_flag_is_kept():
@@ -198,7 +199,7 @@ def test_given_marker_in_traffic_when_analyse_then_flag_is_kept():
 
 def test_given_pcap_file_when_capture_traffic_then_packets_are_read_without_asking_interface(tmp_path):
     # Given
-    pcap_file = tmp_path / "attaque.pcap"
+    pcap_file = tmp_path / "attack.pcap"
     packets = [Ether() / IP() / TCP(), Ether() / ARP()]
     wrpcap(str(pcap_file), packets)
     with patch("src.tp1.utils.capture.choose_interface") as mock_choose_interface:
@@ -210,4 +211,4 @@ def test_given_pcap_file_when_capture_traffic_then_packets_are_read_without_aski
     # Then
     mock_choose_interface.assert_not_called()
     assert capture.get_packet_count() == len(packets)
-    assert capture.get_source() == f"fichier {pcap_file}"
+    assert capture.get_source() == f"file {pcap_file}"

@@ -1,5 +1,5 @@
 """
-Configuration commune des tests, chargée par pytest avant les fichiers de test
+Shared test configuration, loaded by pytest before the test files
 """
 
 import os
@@ -7,9 +7,9 @@ import sys
 import tempfile
 from pathlib import Path
 
-# le projet n'est pas forcément installé (bac à sable de correction)
+# the project is not necessarily installed (grading sandbox)
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-# src/config.py crée app.log dans le dossier courant dès l'import, qui peut être en lecture seule
+# src/config.py creates app.log in the current folder on import, which may be read-only
 TEST_DIRECTORY = tempfile.TemporaryDirectory(prefix="tests-securite-python-")
 os.chdir(TEST_DIRECTORY.name)
