@@ -1,4 +1,5 @@
 import argparse
+import os
 import sys
 from pathlib import Path
 
@@ -65,6 +66,10 @@ def main(arguments: list[str] | None = None):
     capture.analyse()
     summary = capture.get_summary()
     logger.info(summary)
+
+    # écrire les rapports à côté du pcap analysé (là où le correcteur les récupère)
+    if options.pcap:
+        os.chdir(Path(options.pcap).resolve().parent)
 
     filename = "report.pdf"
     report = Report(capture, filename, summary)
