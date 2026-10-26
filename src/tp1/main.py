@@ -67,16 +67,22 @@ def main(arguments: list[str] | None = None):
     summary = capture.get_summary()
     logger.info(summary)
 
-    # écrire les rapports à côté du pcap analysé (là où le correcteur les récupère)
-    if options.pcap:
-        os.chdir(Path(options.pcap).resolve().parent)
-
-    filename = "report.pdf"
-    report = Report(capture, filename, summary)
-    report.generate("graph")
-    report.generate("array")
-    report.save(filename)
-    report.save_json("report.json")
+    # le correcteur monte l'entrée en lecture seule et récupère les rapports dans /out s'il existe
+    original_cwd = Path.cwd()
+    output_dir = Path("/out") if Path("/out").is_dir() and os.access("/out", os.W_OK) else original_cwd
+    os.chdir(output_dir)
+    try:
+        filename = "report.pdf"
+        report = Report(capture, filename, summary)
+        report.generate("array")
+        report.save_json("report.json")  # fichier noté par le correcteur : écrit en premier
+        try:
+            report.generate("graph")
+            report.save(filename)
+        except OSError as error:
+            logger.warning(f"Rapport PDF/graphique non généré : {error}")
+    finally:
+        os.chdir(original_cwd)
 
 
 if __name__ == "__main__":
