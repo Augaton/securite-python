@@ -42,10 +42,11 @@ chaque paquet sont relevés couche par couche (Ethernet, IP, TCP, UDP, ICMP, DNS
 
 ## TP2 — Triage de malware
 
-Analyse chaque échantillon d'un dossier et écrit un `<sha256>.json` (et un `.pdf` lisible) par
-échantillon : SHA-256/MD5, taille, type de fichier (python-magic), entropie de Shannon, IOC (domaines,
-IP, URLs, mutex, clés de registre), imports (lief), règles YARA déclenchées, famille probable, techniques
-MITRE ATT&CK, résumé, score 0-10 et le vrai drapeau `ESGI{...}`.
+Analyse chaque échantillon d'un dossier et écrit dans `--out`, par échantillon, un
+`<échantillon>.triage.json` (le fichier lu par le correcteur), la même chose sous `<sha256>.json` et un
+`<échantillon>.triage.pdf` lisible : SHA-256/MD5, taille, type de fichier (python-magic), entropie de
+Shannon, IOC (domaines, IP, URLs, mutex, clés de registre), imports (lief), règles YARA déclenchées,
+famille probable, techniques MITRE ATT&CK, résumé, score 0-10 et le vrai drapeau `ESGI{...}`.
 
 ```bash
 poetry run tp2 --samples DOSSIER --rules rules --out DOSSIER

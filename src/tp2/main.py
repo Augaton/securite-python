@@ -20,7 +20,7 @@ def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="TP2 : triage statique de malware")
     parser.add_argument("--samples", required=True, help="dossier des échantillons à analyser")
     parser.add_argument("--rules", default=None, help="dossier des règles YARA (défaut : rules/ du projet)")
-    parser.add_argument("--out", required=True, help="dossier de sortie (un <sha256>.json par échantillon)")
+    parser.add_argument("--out", required=True, help="dossier de sortie (<nom>.triage.json par échantillon)")
     parser.add_argument("--llm", choices=["openrouter", "ollama"], default="openrouter")
     args = parser.parse_args(argv)
 
