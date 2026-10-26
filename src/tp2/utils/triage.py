@@ -11,7 +11,7 @@ URL_PATTERN = re.compile(rb"https?://[^\x00-\x20\"'<>\\)]+")
 IPV4_PATTERN = re.compile(rb"\b(?:\d{1,3}\.){3}\d{1,3}\b")
 EMAIL_PATTERN = re.compile(rb"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
 DOMAIN_PATTERN = re.compile(rb"\b(?:[A-Za-z0-9-]+\.)+[A-Za-z]{2,}\b")
-# TLDs we keep so file names like "libc.so" are not mistaken for domains ("test" = the C2's TLD)
+# TLD qu'on garde pour ne pas prendre un nom de fichier comme "libc.so" pour un domaine ("test" = le TLD du C2)
 DOMAIN_TLDS = {"com", "net", "org", "io", "ru", "cn", "xyz", "top", "test", "info",
                "biz", "online", "site", "gov", "edu", "co", "uk", "de", "fr"}
 FILE_MAGICS = {b"\x7fELF": "ELF", b"MZ": "PE", b"\xca\xfe\xba\xbe": "Mach-O",
@@ -19,7 +19,7 @@ FILE_MAGICS = {b"\x7fELF": "ELF", b"MZ": "PE", b"\xca\xfe\xba\xbe": "Mach-O",
 
 
 def shannon_entropy(data: bytes) -> float:
-    """Shannon entropy in bits per byte (0 = uniform, ~8 = random/encrypted/packed)."""
+    """Entropie de Shannon en bits par octet (0 = uniforme, ~8 = aléatoire/chiffré/packé)."""
     if not data:
         return 0.0
     length = len(data)
@@ -42,7 +42,7 @@ def host_of(url: str) -> str:
 
 
 def extract_iocs(data: bytes) -> dict:
-    """URLs, IPv4, domains and emails found in the sample's printable strings."""
+    """URL, IPv4, domaines et emails trouvés dans les chaînes imprimables de l'échantillon."""
     urls = sorted({m.decode("latin-1") for m in URL_PATTERN.findall(data)})
     emails = sorted({m.decode("latin-1") for m in EMAIL_PATTERN.findall(data)})
     ips = sorted({m.decode() for m in IPV4_PATTERN.findall(data) if valid_ipv4(m.decode())})
@@ -56,7 +56,7 @@ def extract_iocs(data: bytes) -> dict:
 
 
 def find_flag(data: bytes) -> str | None:
-    """The real ESGI{...} marker, skipping the decoy flags planted to mislead."""
+    """Le vrai marqueur ESGI{...}, en ignorant les faux drapeaux (decoy) posés pour tromper."""
     for match in FLAG_PATTERN.findall(data):
         flag = match.decode("latin-1")
         if "decoy" not in flag.lower():

@@ -7,7 +7,7 @@ ESGI_FLAG = re.compile(rb"ESGI\{[\x20-\x7e]{1,100}\}")
 
 
 def scan_rules(data: bytes, entropy: float) -> list[str]:
-    """Names of the YARA rules that match the sample, using real YARA when it is installed."""
+    """Noms des règles YARA qui matchent, via le vrai YARA s'il est installé."""
     try:
         import yara
 
@@ -18,7 +18,7 @@ def scan_rules(data: bytes, entropy: float) -> list[str]:
 
 
 def fallback_scan(data: bytes, entropy: float) -> list[str]:
-    """Pure-Python mirror of malware.yar, for when yara-python is not available."""
+    """Repli en Python pur qui reproduit malware.yar quand yara-python n'est pas disponible."""
     lower = data.lower()
     matches = []
     if b"/gate.php" in data and (b"c2-" in data or b".example.test" in data):

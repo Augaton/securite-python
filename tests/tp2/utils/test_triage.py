@@ -33,7 +33,7 @@ def test_given_strings_when_extract_iocs_then_return_urls_ips_domains_emails():
     assert result["urls"] == ["http://c2-dead.example.test/gate.php"]
     assert result["ipv4"] == ["185.10.20.30"]
     assert result["emails"] == ["bug@evil.ru"]
-    # file names like libc.so.6 are not mistaken for domains
+    # un nom de fichier comme libc.so.6 n'est pas pris pour un domaine
     assert result["domains"] == ["c2-dead.example.test", "evil.ru", "gnu.org"]
 
 
