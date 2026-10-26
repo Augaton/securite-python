@@ -43,7 +43,7 @@ def test_when_hello_world_then_return_hello_world():
 @pytest.fixture
 def keyboard():
     """
-    Simule un terminal : sous pytest l'entrée standard n'est pas un clavier
+    Simulate a terminal: under pytest, standard input is not a keyboard
     """
     with patch("src.tp1.utils.lib.sys.stdin") as mock_stdin:
         mock_stdin.isatty.return_value = True
@@ -155,15 +155,15 @@ def test_given_icmp_port_unreachable_when_get_protocol_then_return_icmp():
     assert result == "ICMP"
 
 
-def test_given_raw_data_only_when_get_protocol_then_return_autre():
+def test_given_raw_data_only_when_get_protocol_then_return_other():
     # Given
-    packet = Raw(b"donnees")
+    packet = Raw(b"data")
 
     # When
     result = get_protocol(packet)
 
     # Then
-    assert result == "Autre"
+    assert result == "Other"
 
 
 @pytest.mark.parametrize(
@@ -184,7 +184,7 @@ IDENTITY_CALLS = ("initgroups", "setgid", "setuid")
 @pytest.fixture
 def mock_os():
     """
-    Remplace les appels système de changement d'utilisateur : les tests ne tournent pas en root
+    Replace the user-switching system calls: the tests do not run as root
     """
     with (
         patch("src.tp1.utils.lib.get_sudo_user", return_value=SUDO_USER),
@@ -226,7 +226,7 @@ def test_given_root_without_sudo_when_drop_privileges_then_warn_that_everything_
 
     # Then
     mock_os.setuid.assert_not_called()
-    assert "Lancé en root sans sudo" in caplog.text
+    assert "Running as root without sudo" in caplog.text
 
 
 def test_given_root_still_there_after_setuid_when_drop_privileges_then_stop(mock_os):

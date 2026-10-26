@@ -22,7 +22,7 @@ def test_report_init():
     # Then
     assert report.capture == capture
     assert report.filename == filename
-    assert report.title == "Rapport de capture réseau"
+    assert report.title == "Network capture report"
     assert report.summary == summary
     assert report.array == []
     assert report.graph == ""
@@ -113,10 +113,10 @@ def test_when_concat_report_then_array_has_share_of_each_protocol_and_total():
     pdf = report.concat_report()
 
     # Then
-    # sans compression le texte du PDF est lisible directement dans le fichier
+    # without compression the PDF text is readable straight from the file
     pdf.set_compression(False)
     content = bytes(pdf.output())
-    for text in (b"Part du trafic", b"75.0 %", b"25.0 %", b"Total", b"100.0 %"):
+    for text in (b"Traffic share", b"75.0 %", b"25.0 %", b"Total", b"100.0 %"):
         assert text in content
 
 
@@ -126,13 +126,13 @@ ARP_ATTACK = Attack(
     protocol="ARP",
     attacker_ip="192.168.1.66",
     attacker_mac="aa:bb:cc:dd:ee:ff",
-    details="se fait passer pour 192.168.1.1",
+    details="impersonates 192.168.1.1",
 )
 
 
 def make_capture(attacks: list, flag: str | None = None) -> MagicMock:
     """
-    Capture analysée de test : 3 paquets ARP et 1 TCP
+    Analysed test capture: 3 ARP packets and 1 TCP
     """
     capture = MagicMock()
     capture.get_source.return_value = "interface eth0"
@@ -144,7 +144,7 @@ def make_capture(attacks: list, flag: str | None = None) -> MagicMock:
 
 def get_pdf_text(report: Report) -> bytes:
     """
-    Contenu du PDF sans compression, pour pouvoir y chercher du texte (encodé en latin-1)
+    PDF content without compression, so text can be searched in it (encoded as latin-1)
     """
     report.generate("array")
     pdf = report.concat_report()
@@ -161,11 +161,11 @@ def test_given_attack_when_concat_report_then_traffic_is_illegitimate_and_attack
 
     # Then
     for text in (
-        "Illégitime : ARP spoofing",
-        "Légitime",
+        "Illegitimate: ARP spoofing",
+        "Legitimate",
         "aa:bb:cc:dd:ee:ff",
         "192.168.1.66",
-        "Marqueur trouvé : ESGI{abc}",
+        "Marker found: ESGI{abc}",
     ):
         assert text.encode("latin-1") in content
 
@@ -178,15 +178,15 @@ def test_given_no_attack_when_concat_report_then_everything_is_fine():
     content = get_pdf_text(report)
 
     # Then
-    assert "Aucune attaque détectée : tout va bien.".encode("latin-1") in content
-    assert "Illégitime".encode("latin-1") not in content
+    assert "No attack detected: all good.".encode("latin-1") in content
+    assert "Illegitimate".encode("latin-1") not in content
 
 
 def test_given_non_latin1_text_from_attacker_when_concat_report_then_pdf_is_still_created():
     # Given
     attack = Attack(
         "sql_injection",
-        "Injection SQL",
+        "SQL injection",
         "TCP",
         "10.0.0.66",
         "aa:bb:cc:dd:ee:ff",
@@ -203,7 +203,7 @@ def test_given_non_latin1_text_from_attacker_when_concat_report_then_pdf_is_stil
 
 def test_when_save_json_then_file_has_the_format_expected_by_the_grader(tmp_path):
     # Given
-    scan = Attack("syn_scan", "Scan SYN", "TCP", "192.168.1.66", "aa:bb:cc:dd:ee:ff", "20 ports visés")
+    scan = Attack("syn_scan", "SYN scan", "TCP", "192.168.1.66", "aa:bb:cc:dd:ee:ff", "20 ports targeted")
     report = Report(make_capture([ARP_ATTACK, scan], flag="ESGI{abc}"), "test.pdf", "Test summary")
     filename = tmp_path / "report.json"
 
@@ -244,19 +244,19 @@ def test_given_graph_when_concat_report_then_pdf_has_a_bar_per_protocol():
     content = get_pdf_text(report)
 
     # Then
-    assert b"Graphique : nombre de paquets par protocole" in content
+    assert b"Graph: packets per protocol" in content
     for text in (b"ARP  ", b"  3", b"TCP  ", b"  1"):
         assert text in content
 
 
 def test_when_importing_the_tool_then_cairo_is_not_needed(tmp_path):
     # Given
-    # le bac à sable de correction n'a pas la bibliothèque système cairo : on interdit son import
+    # the grading sandbox has no system cairo library: we forbid its import
     code = "import sys; sys.modules['cairosvg'] = sys.modules['cairocffi'] = None; import src.tp1.main"
     environment = {**os.environ, "PYTHONPATH": str(Path(__file__).resolve().parents[3])}
 
     # When
-    # depuis un dossier temporaire : l'import crée app.log dans le dossier courant
+    # from a temporary folder: the import creates app.log in the current folder
     result = subprocess.run(
         [sys.executable, "-c", code],
         cwd=tmp_path,

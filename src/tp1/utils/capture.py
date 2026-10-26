@@ -24,82 +24,82 @@ class Capture:
 
     def open_socket(self) -> None:
         """
-        Ouvre le socket de capture : la seule étape qui a besoin des droits root
+        Open the capture socket: the only step that needs root privileges
         """
         if self.pcap_file is None:
             self.listen_socket = conf.L2listen(iface=self.interface)
 
     def capture_traffic(self) -> None:
         """
-        Capture le trafic d'une interface (ou lit le fichier pcap)
+        Capture the traffic of an interface (or read the pcap file)
         """
         if self.pcap_file is not None:
             sniff(offline=self.pcap_file, prn=self.add_packet, store=False)
-            logger.info(f"{self.get_packet_count()} paquets lus dans {self.pcap_file}")
+            logger.info(f"{self.get_packet_count()} packets read from {self.pcap_file}")
             return
         if self.listen_socket is None:
             self.open_socket()
         logger.info(
-            f"Capture sur {self.interface} pendant {self.timeout} secondes (Ctrl+C pour arrêter avant)"
+            f"Capturing on {self.interface} for {self.timeout} seconds (Ctrl+C to stop early)"
         )
         try:
-            # sniff s'arrête proprement sur Ctrl+C, les paquets déjà reçus restent comptés
+            # sniff stops cleanly on Ctrl+C, the packets already received stay counted
             sniff(opened_socket=self.listen_socket, timeout=self.timeout, prn=self.add_packet, store=False)
         finally:
             self.listen_socket.close()
             self.listen_socket = None
-        logger.info(f"{self.get_packet_count()} paquets capturés")
+        logger.info(f"{self.get_packet_count()} packets captured")
 
     def add_packet(self, packet: Packet) -> None:
         """
-        Compte et analyse un paquet dès qu'il arrive, sans le garder en mémoire
+        Count and analyse a packet as soon as it arrives, without keeping it in memory
         """
         self.protocol_counts[get_protocol(packet)] += 1
         self.analyzer.add_packet(packet)
 
     def get_packet_count(self) -> int:
         """
-        Retourne le nombre de paquets capturés
+        Return the number of captured packets
         """
         return sum(self.protocol_counts.values())
 
     def get_source(self) -> str:
         """
-        Retourne l'interface écoutée ou le fichier pcap lu
+        Return the listened interface or the read pcap file
         """
-        return f"fichier {self.pcap_file}" if self.pcap_file is not None else f"interface {self.interface}"
+        return f"file {self.pcap_file}" if self.pcap_file is not None else f"interface {self.interface}"
 
     def sort_network_protocols(self) -> dict:
         """
-        Retourne les protocoles capturés, du plus utilisé au moins utilisé
+        Return the captured protocols, from the most used to the least used
         """
         all_protocols = self.get_all_protocols()
         return dict(sorted(all_protocols.items(), key=lambda item: item[1], reverse=True))
 
     def get_all_protocols(self) -> dict:
         """
-        Retourne chaque protocole capturé avec son nombre de paquets
+        Return each captured protocol with its packet count
         """
         return dict(self.protocol_counts)
 
     def analyse(self) -> None:
         """
-        Analyse le trafic capturé : trie les protocoles, relève les attaques
-        (type, protocole, IP/MAC de l'attaquant) et le marqueur, puis construit le résumé
+        Analyse the captured traffic: sort the protocols, report the attacks
+        (type, protocol, attacker IP/MAC) and the marker, then build the summary
         """
         self.protocols = self.sort_network_protocols()
         for protocol, count in self.protocols.items():
-            logger.info(f"{protocol} : {count} paquets")
+            logger.info(f"{protocol}: {count} packets")
 
         self.attacks = self.analyzer.get_attacks()
         for attack in self.attacks:
-            logger.warning(f"Tentative d'attaque : {attack.describe()}")
+            logger.warning(f"Attack attempt: {attack.describe()}")
         if not self.attacks:
-            logger.info("Aucune attaque détectée, tout va bien")
+            logger.info("No attack detected, all good")
 
         self.flag = self.analyzer.flag
         if self.flag is not None:
-            logger.info(f"Marqueur trouvé : {self.flag}")
+            logger.info(f"Marker found: {self.flag}")
 
         self.summary = self._gen_summary()
 
@@ -108,24 +108,24 @@ class Capture:
 
     def _gen_summary(self) -> str:
         """
-        Construit le résumé textuel de la capture
+        Build the capture's text summary
         """
         total = sum(self.protocols.values())
         if total == 0:
-            return f"Aucun paquet capturé ({self.get_source()})."
+            return f"No packet captured ({self.get_source()})."
 
         most_used = next(iter(self.protocols))
         summary = (
-            f"{total} paquets ont été analysés ({self.get_source()}). "
-            f"Le protocole le plus utilisé est {most_used} avec {self.protocols[most_used]} paquets. "
+            f"{total} packets were analysed ({self.get_source()}). "
+            f"The most used protocol is {most_used} with {self.protocols[most_used]} packets. "
         )
         return summary + self._gen_attacks_summary()
 
     def _gen_attacks_summary(self) -> str:
         """
-        Génère la partie du résumé sur la légitimité du trafic
+        Build the part of the summary about the traffic's legitimacy
         """
         if not self.attacks:
-            return "Aucune attaque détectée, tout va bien."
+            return "No attack detected, all good."
         attack_names = ", ".join(attack.name for attack in self.attacks)
-        return f"{len(self.attacks)} tentative(s) d'attaque détectée(s) : {attack_names}."
+        return f"{len(self.attacks)} attack attempt(s) detected: {attack_names}."

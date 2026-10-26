@@ -7,28 +7,28 @@ from scapy.all import ARP, IP, TCP, Ether, IPv6, Packet, Raw
 
 from src.tp1.utils.lib import get_protocol
 
-UNKNOWN = "inconnue"
+UNKNOWN = "unknown"
 ETHERTYPE_IPV4 = 0x0800
 SYN_SCAN_MIN_PORTS = 10
 HTTP_METHODS = (b"GET ", b"POST ", b"PUT ", b"PATCH ", b"DELETE ", b"HEAD ", b"OPTIONS ")
 SQL_INJECTION_PATTERN = re.compile(
     r"""["']\s*(or|and)\s*["']?\w*["']?\s*="""  # ' OR '1'='1, ' AND 1=1, ' or ''='
-    r"|\b(or|and)\s+\d+\s*=\s*\d+"  # OR 1=1 (champ numérique, sans guillemet)
+    r"|\b(or|and)\s+\d+\s*=\s*\d+"  # OR 1=1 (numeric field, no quotes)
     r"|\bunion\s+(all\s+)?select\b"  # UNION SELECT
     r"|;\s*(drop|delete|insert|update|select)\b"  # ; DROP TABLE
-    r"""|["']\s*(--|#)(\s|&|$)|["']\s*/\*"""  # ' -- (fin de la vraie requête en commentaire)
-    r"|\b(sleep|pg_sleep|benchmark)\s*\("  # injection à l'aveugle basée sur le temps
+    r"""|["']\s*(--|#)(\s|&|$)|["']\s*/\*"""  # ' -- (end of the real query commented out)
+    r"|\b(sleep|pg_sleep|benchmark)\s*\("  # time-based blind injection
     r"|\binformation_schema\b",
     re.IGNORECASE,
 )
-# imprimable et borné : pas de codes de contrôle dans les logs, pas de recherche qui s'emballe
+# Printable and bounded: no control codes in the logs, no runaway search
 FLAG_PATTERN = re.compile(r"ESGI\{[\x21-\x7c\x7e]{1,100}\}")
 
 
 @dataclass(frozen=True)
 class Attack:
     """
-    Tentative d'attaque repérée dans le trafic
+    Attack attempt spotted in the traffic
     """
 
     attack_type: str
@@ -40,29 +40,29 @@ class Attack:
 
     def get_attacker(self) -> str:
         """
-        Adresse qui identifie l'attaquant : sa MAC pour l'ARP, son IP sinon
+        Address that identifies the attacker: its MAC for ARP, its IP otherwise
         """
         return self.attacker_mac if self.protocol == "ARP" else self.attacker_ip
 
     def describe(self) -> str:
         """
-        Décrit l'attaque en une ligne
+        Describe the attack on a single line
         """
         return (
-            f"{self.name} ({self.protocol}) depuis {self.attacker_ip} / {self.attacker_mac} : {self.details}"
+            f"{self.name} ({self.protocol}) from {self.attacker_ip} / {self.attacker_mac}: {self.details}"
         )
 
 
 def get_source_mac(packet: Packet) -> str:
     """
-    Retourne l'adresse MAC source d'un paquet
+    Return a packet's source MAC address
     """
     return packet[Ether].src if packet.haslayer(Ether) else UNKNOWN
 
 
 def get_source_ip(packet: Packet) -> str:
     """
-    Retourne l'adresse IP source d'un paquet (IPv4 ou IPv6)
+    Return a packet's source IP address (IPv4 or IPv6)
     """
     for ip_layer in (IP, IPv6):
         if packet.haslayer(ip_layer):
@@ -72,7 +72,7 @@ def get_source_ip(packet: Packet) -> str:
 
 def get_destination_ip(packet: Packet) -> str:
     """
-    Retourne l'adresse IP destination d'un paquet (IPv4 ou IPv6)
+    Return a packet's destination IP address (IPv4 or IPv6)
     """
     for ip_layer in (IP, IPv6):
         if packet.haslayer(ip_layer):
@@ -82,9 +82,9 @@ def get_destination_ip(packet: Packet) -> str:
 
 def is_ipv4_arp(arp: ARP) -> bool:
     """
-    Vérifie que c'est un ARP IPv4 sur Ethernet : dans un ARP malformé les adresses sont des octets bruts
+    Check this is IPv4 ARP over Ethernet: in a malformed ARP the addresses are raw bytes
     """
-    # hwlen et plen valent None dans un paquet construit à la main
+    # hwlen and plen are None in a hand-crafted packet
     return (
         arp.hwtype == 1 and arp.ptype == ETHERTYPE_IPV4 and arp.hwlen in (None, 6) and arp.plen in (None, 4)
     )
@@ -92,9 +92,9 @@ def is_ipv4_arp(arp: ARP) -> bool:
 
 def get_http_request(packet: Packet) -> str | None:
     """
-    Retourne la requête HTTP en clair d'un paquet, URL décodée (le HTTPS chiffré n'est pas analysable)
+    Return a packet's cleartext HTTP request, URL-decoded (encrypted HTTPS cannot be analysed)
 
-    :return: texte de la requête, None si le paquet ne contient pas de requête HTTP
+    :return: request text, None if the packet holds no HTTP request
     """
     if not packet.haslayer(Raw):
         return None
@@ -106,32 +106,32 @@ def get_http_request(packet: Packet) -> str | None:
 
 def find_sql_injection(packet: Packet, source_ip: str) -> Attack | None:
     """
-    Cherche une injection SQL dans la requête HTTP d'un paquet
+    Look for a SQL injection in a packet's HTTP request
 
-    :return: l'attaque, None si le paquet n'en contient pas
+    :return: the attack, None if the packet holds none
     """
     request = get_http_request(packet)
     if request is None or not SQL_INJECTION_PATTERN.search(request):
         return None
     request_line = request.splitlines()[0][:100]
-    # !r échappe les caractères de contrôle envoyés par l'attaquant avant qu'ils arrivent au terminal
+    # !r escapes the control characters sent by the attacker before they reach the terminal
     return Attack(
         attack_type="sql_injection",
-        name="Injection SQL",
+        name="SQL injection",
         protocol=get_protocol(packet),
         attacker_ip=source_ip,
         attacker_mac=get_source_mac(packet),
-        details=f"requête HTTP vers {get_destination_ip(packet)} : {request_line!r}",
+        details=f"HTTP request to {get_destination_ip(packet)}: {request_line!r}",
     )
 
 
 def search_flag(packet: Packet) -> str | None:
     """
-    Cherche le marqueur ESGI{...} dans un paquet, même encodé dans une URL
+    Look for the marker ESGI{...} in a packet, even when URL-encoded
 
-    :return: le marqueur, None s'il n'est pas dans le paquet
+    :return: the marker, None if it is not in the packet
     """
-    # original = octets reçus, bytes(packet) reconstruirait tout le paquet (beaucoup plus lent)
+    # original = bytes received; bytes(packet) would rebuild the whole packet (much slower)
     raw_packet = packet.original or bytes(packet)
     if b"ESGI" not in raw_packet:
         return None
@@ -141,13 +141,13 @@ def search_flag(packet: Packet) -> str | None:
 
 class TrafficAnalyzer:
     """
-    Analyse le trafic paquet par paquet, sans garder les paquets
+    Analyse the traffic packet by packet, without keeping the packets
     """
 
     def __init__(self) -> None:
-        self.arp_macs_by_ip = defaultdict(dict)  # {IP : {MAC : rang d'arrivée}}
+        self.arp_macs_by_ip = defaultdict(dict)  # {IP: {MAC: arrival rank}}
         self.arp_ips_by_mac = defaultdict(set)
-        # vraie IP d'une MAC, vue dans son trafic IP : en ARP spoofing l'IP annoncée est celle de la victime
+        # Real IP of a MAC, seen in its IP traffic: under ARP spoofing the announced IP is the victim's
         self.ip_by_mac = {}
         self.syn_ports_by_ip = defaultdict(set)
         self.syn_targets_by_ip = defaultdict(set)
@@ -157,7 +157,7 @@ class TrafficAnalyzer:
 
     def add_packet(self, packet: Packet) -> None:
         """
-        Prend en compte un paquet capturé
+        Take a captured packet into account
         """
         source_ip = get_source_ip(packet)
         if source_ip != UNKNOWN:
@@ -171,7 +171,7 @@ class TrafficAnalyzer:
 
     def add_arp(self, arp: ARP) -> None:
         """
-        Note l'annonce ARP "l'IP psrc est à la MAC hwsrc" (0.0.0.0 : machine sans IP, ignorée)
+        Record the ARP announcement "IP psrc is at MAC hwsrc" (0.0.0.0: host with no IP, ignored)
         """
         if is_ipv4_arp(arp) and arp.psrc != "0.0.0.0":
             macs = self.arp_macs_by_ip[arp.psrc]
@@ -180,13 +180,13 @@ class TrafficAnalyzer:
 
     def add_tcp(self, packet: Packet, source_ip: str) -> None:
         """
-        Note les SYN seuls (scan) et cherche une injection SQL dans les requêtes HTTP
+        Record lone SYNs (scan) and look for a SQL injection in HTTP requests
         """
         if packet[TCP].flags == "S":
             self.syn_ports_by_ip[source_ip].add(packet[TCP].dport)
             self.syn_targets_by_ip[source_ip].add(get_destination_ip(packet))
             self.syn_mac_by_ip.setdefault(source_ip, get_source_mac(packet))
-        # pas de elif : un paquet fabriqué avec scapy est un SYN par défaut, même s'il porte une requête
+        # No elif: a packet crafted with scapy is a SYN by default, even when it carries a request
         if source_ip not in self.sql_injections:
             injection = find_sql_injection(packet, source_ip)
             if injection is not None:
@@ -194,7 +194,7 @@ class TrafficAnalyzer:
 
     def get_attacks(self) -> list[Attack]:
         """
-        Retourne toutes les tentatives d'attaque trouvées
+        Return every attack attempt found
         """
         ip_attacks = self.get_syn_scan_attacks() + self.get_sql_injection_attacks()
         other_attacker_macs = {attack.attacker_mac for attack in ip_attacks}
@@ -202,11 +202,11 @@ class TrafficAnalyzer:
 
     def find_arp_spoofers(self, other_attacker_macs: set[str]) -> dict[str, set[str]]:
         """
-        Retourne les MAC qui usurpent des IP, avec les IP usurpées :
-        - une MAC qui annonce plusieurs IP les usurpe toutes
-        - pour une IP annoncée par plusieurs MAC, on accuse celle déjà suspecte (plusieurs IP, ou source
-          d'une autre attaque), sinon la dernière arrivée (comme arpwatch). Pas le nombre d'annonces :
-          la vraie passerelle en fait souvent plus que l'attaquant
+        Return the MACs that spoof IPs, with the spoofed IPs:
+        - a MAC that announces several IPs spoofs them all
+        - for an IP announced by several MACs, we accuse the one already suspect (several IPs, or source
+          of another attack), otherwise the last to arrive (like arpwatch). Not the number of
+          announcements: the real gateway often makes more of them than the attacker
         """
         several_ips_macs = {mac for mac, ips in self.arp_ips_by_mac.items() if len(ips) > 1}
         suspect_macs = several_ips_macs | other_attacker_macs
@@ -221,7 +221,7 @@ class TrafficAnalyzer:
 
     def get_arp_spoofing_attacks(self, other_attacker_macs: set[str] | None = None) -> list[Attack]:
         """
-        Retourne les ARP spoofing : de fausses annonces ARP pour recevoir le trafic d'une autre machine
+        Return the ARP spoofing attacks: fake ARP announcements to receive another host's traffic
         """
         return [
             Attack(
@@ -230,23 +230,23 @@ class TrafficAnalyzer:
                 protocol="ARP",
                 attacker_ip=self.ip_by_mac.get(mac, UNKNOWN),
                 attacker_mac=mac,
-                details=f"se fait passer pour {', '.join(sorted(spoofed_ips))}",
+                details=f"impersonates {', '.join(sorted(spoofed_ips))}",
             )
             for mac, spoofed_ips in self.find_arp_spoofers(other_attacker_macs or set()).items()
         ]
 
     def get_syn_scan_attacks(self) -> list[Attack]:
         """
-        Retourne les scans SYN : des SYN seuls vers au moins SYN_SCAN_MIN_PORTS ports différents
+        Return the SYN scans: lone SYNs to at least SYN_SCAN_MIN_PORTS different ports
         """
         return [
             Attack(
                 attack_type="syn_scan",
-                name="Scan SYN",
+                name="SYN scan",
                 protocol="TCP",
                 attacker_ip=ip,
                 attacker_mac=self.syn_mac_by_ip[ip],
-                details=f"{len(ports)} ports visés sur {', '.join(sorted(self.syn_targets_by_ip[ip]))}",
+                details=f"{len(ports)} ports targeted on {', '.join(sorted(self.syn_targets_by_ip[ip]))}",
             )
             for ip, ports in self.syn_ports_by_ip.items()
             if len(ports) >= SYN_SCAN_MIN_PORTS
@@ -254,17 +254,17 @@ class TrafficAnalyzer:
 
     def get_sql_injection_attacks(self) -> list[Attack]:
         """
-        Retourne les injections SQL : une par attaquant, avec sa première requête suspecte
+        Return the SQL injections: one per attacker, with its first suspicious request
         """
         return list(self.sql_injections.values())
 
 
 def analyse_packets(packets: list[Packet]) -> TrafficAnalyzer:
     """
-    Analyse des paquets déjà capturés
+    Analyse already-captured packets
 
-    :param packets: paquets à analyser
-    :return: l'analyseur, avec les attaques (get_attacks) et le marqueur (flag) trouvés
+    :param packets: packets to analyse
+    :return: the analyzer, with the attacks (get_attacks) and the marker (flag) found
     """
     analyzer = TrafficAnalyzer()
     for packet in packets:

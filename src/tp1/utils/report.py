@@ -19,12 +19,12 @@ LABEL_WIDTH_MM = 45
 VALUE_WIDTH_MM = 22
 BAR_HEIGHT_MM = 5
 BAR_GAP_MM = 1.5
-MAX_BARS = 25  # au-delà le graphique ne tient plus sur une page (le tableau, lui, garde tout)
+MAX_BARS = 25  # beyond this the chart no longer fits on a page (the table keeps everything)
 
 
 def to_pdf_text(text: str) -> str:
     """
-    Remplace par "?" les caractères que les polices de base de fpdf (latin-1) ne savent pas écrire
+    Replace with "?" the characters fpdf's core fonts (latin-1) cannot render
     """
     return str(text).encode("latin-1", "replace").decode("latin-1")
 
@@ -33,14 +33,14 @@ class Report:
     def __init__(self, capture: Capture, filename: str, summary: str):
         self.capture = capture
         self.filename = filename
-        self.title = "Rapport de capture réseau"
+        self.title = "Network capture report"
         self.summary = summary
         self.array = []
         self.graph = ""
 
     def concat_report(self) -> FPDF:
         """
-        Assemble le PDF complet : titre, résumé, tableau, légitimité du trafic et graphique
+        Assemble the full PDF: title, summary, table, traffic legitimacy and chart
         """
         pdf = FPDF()
         pdf.set_margins(MARGIN_MM, MARGIN_MM)
@@ -48,15 +48,15 @@ class Report:
         pdf.add_page()
         self.add_title(pdf)
 
-        self.add_section(pdf, "Résumé")
+        self.add_section(pdf, "Summary")
         pdf.multi_cell(0, 6, to_pdf_text(self.summary), new_x="LMARGIN", new_y="NEXT")
         pdf.ln(6)
 
-        self.add_section(pdf, "Répartition des paquets par protocole")
+        self.add_section(pdf, "Packet distribution by protocol")
         self.add_array(pdf)
         pdf.ln(6)
 
-        self.add_section(pdf, "Légitimité du trafic")
+        self.add_section(pdf, "Traffic legitimacy")
         self.add_attacks(pdf)
         pdf.ln(6)
 
@@ -65,14 +65,14 @@ class Report:
 
     def add_title(self, pdf: FPDF) -> None:
         """
-        Ajoute le titre du rapport, avec la date et la source des paquets
+        Add the report title, with the date and the source of the packets
         """
         pdf.set_font(FONT, "B", 18)
         pdf.cell(0, 10, self.title, new_x="LMARGIN", new_y="NEXT")
         pdf.set_font(FONT, size=10)
         pdf.set_text_color(*GREY_TEXT)
-        date = datetime.now(timezone.utc).astimezone().strftime("%d/%m/%Y à %H:%M")
-        subtitle = f"Généré le {date} - {self.capture.get_source()}"
+        date = datetime.now(timezone.utc).astimezone().strftime("%d/%m/%Y at %H:%M")
+        subtitle = f"Generated on {date} - {self.capture.get_source()}"
         pdf.cell(0, 6, to_pdf_text(subtitle), new_x="LMARGIN", new_y="NEXT")
         pdf.set_text_color(0)
         pdf.ln(6)
@@ -80,7 +80,7 @@ class Report:
     @staticmethod
     def add_section(pdf: FPDF, title: str) -> None:
         """
-        Ajoute le titre d'une partie du rapport
+        Add a report section title
         """
         pdf.set_font(FONT, "B", 13)
         pdf.cell(0, 8, title, new_x="LMARGIN", new_y="NEXT")
@@ -88,7 +88,7 @@ class Report:
 
     def add_array(self, pdf: FPDF) -> None:
         """
-        Ajoute le tableau des paquets par protocole, avec leur part, leur légitimité et le total
+        Add the per-protocol packet table, with each share, its legitimacy and the total
         """
         total = sum(count for _, count in self.array)
         with pdf.table(
@@ -98,24 +98,24 @@ class Report:
             headings_style=HEADINGS_STYLE,
             line_height=7,
         ) as table:
-            table.row(("Protocole", "Paquets", "Part du trafic", "Trafic"))
+            table.row(("Protocol", "Packets", "Traffic share", "Legitimacy"))
             for protocol, count in self.array:
                 table.row((protocol, str(count), format_share(count, total), self.get_legitimacy(protocol)))
             table.row(("Total", str(total), format_share(total, total), ""))
 
     def get_legitimacy(self, protocol: str) -> str:
         """
-        Indique si le trafic d'un protocole est légitime, sinon les attaques qui passent par lui
+        Tell whether a protocol's traffic is legitimate, otherwise the attacks going through it
         """
         attack_names = [attack.name for attack in self.capture.attacks if attack.protocol == protocol]
         if not attack_names:
-            return "Légitime"
-        return "Illégitime : " + ", ".join(attack_names)
+            return "Legitimate"
+        return "Illegitimate: " + ", ".join(attack_names)
 
     @staticmethod
     def add_attacks_table(pdf: FPDF, attacks: list) -> None:
         """
-        Ajoute le tableau des attaques, avec l'IP et la MAC de l'attaquant
+        Add the attacks table, with the attacker's IP and MAC
         """
         with pdf.table(
             col_widths=(2.2, 1.8, 2.4, 3, 4.6),
@@ -124,7 +124,7 @@ class Report:
             headings_style=HEADINGS_STYLE,
             line_height=6,
         ) as table:
-            table.row(("Attaque", "Protocole", "IP attaquant", "MAC attaquant", "Détails"))
+            table.row(("Attack", "Protocol", "Attacker IP", "Attacker MAC", "Details"))
             for attack in attacks:
                 cells = (
                     attack.name,
@@ -137,34 +137,34 @@ class Report:
 
     def add_attacks(self, pdf: FPDF) -> None:
         """
-        Ajoute les tentatives d'attaque (ou indique que tout va bien) et le marqueur trouvé
+        Add the attack attempts (or state that all is good) and the marker found
         """
         attacks = list(self.capture.attacks)
         if not attacks:
-            pdf.multi_cell(0, 6, "Aucune attaque détectée : tout va bien.", new_x="LMARGIN", new_y="NEXT")
+            pdf.multi_cell(0, 6, "No attack detected: all good.", new_x="LMARGIN", new_y="NEXT")
         else:
             self.add_attacks_table(pdf, attacks)
         if self.capture.flag is not None:
             pdf.ln(3)
             pdf.multi_cell(
-                0, 6, to_pdf_text(f"Marqueur trouvé : {self.capture.flag}"), new_x="LMARGIN", new_y="NEXT"
+                0, 6, to_pdf_text(f"Marker found: {self.capture.flag}"), new_x="LMARGIN", new_y="NEXT"
             )
 
     def add_graph(self, pdf: FPDF) -> None:
         """
-        Ajoute l'histogramme des paquets par protocole, sur la page suivante s'il ne tient pas
+        Add the per-protocol packet bar chart, on the next page if it does not fit
         """
         protocols = list(self.capture.protocols.items())[:MAX_BARS]
         if self.graph == "" or not protocols:
             return
         with pdf.unbreakable() as section:
-            self.add_section(section, "Graphique : nombre de paquets par protocole")
+            self.add_section(section, "Graph: packets per protocol")
             self.draw_bars(section, protocols)
 
     @staticmethod
     def draw_bars(pdf: FPDF, protocols: list[tuple[str, int]]) -> None:
         """
-        Dessine une barre par protocole, proportionnelle à son nombre de paquets
+        Draw one bar per protocol, proportional to its packet count
         """
         max_count = max(count for _, count in protocols)
         bars_width = pdf.epw - LABEL_WIDTH_MM - VALUE_WIDTH_MM
@@ -172,24 +172,24 @@ class Report:
         pdf.set_fill_color(*BAR_COLOR)
         for protocol, count in protocols:
             pdf.cell(LABEL_WIDTH_MM, BAR_HEIGHT_MM, f"{to_pdf_text(protocol)}  ", align="R")
-            # la barre est une cellule remplie : elle suit les sauts de page comme du texte
+            # The bar is a filled cell: it follows page breaks like text
             pdf.cell(max(bars_width * count / max_count, 0.5), BAR_HEIGHT_MM, "", fill=True)
             pdf.cell(VALUE_WIDTH_MM, BAR_HEIGHT_MM, f"  {count}", new_x="LMARGIN", new_y="NEXT")
             pdf.ln(BAR_GAP_MM)
 
     def save(self, filename: str) -> None:
         """
-        Génère le PDF et l'enregistre dans filename
+        Generate the PDF and save it to filename
         """
         pdf = self.concat_report()
         pdf.output(filename)
-        logger.info(f"Rapport enregistré dans {filename}")
+        logger.info(f"Report saved to {filename}")
 
     def save_json(self, filename: str) -> None:
         """
-        Enregistre le report.json lu par le correcteur : protocoles, attaques et marqueur
+        Save the report.json read by the grader: protocols, attacks and marker
 
-        :param filename: nom du fichier JSON
+        :param filename: name of the JSON file
         """
         result = {
             "protocols": dict(self.capture.protocols),
@@ -201,11 +201,11 @@ class Report:
         }
         with Path(filename).open("w", encoding="utf-8") as json_file:
             json.dump(result, json_file, indent=2, ensure_ascii=False)
-        logger.info(f"Résultat pour le correcteur enregistré dans {filename}")
+        logger.info(f"Grader result saved to {filename}")
 
     def generate(self, param: str) -> None:
         """
-        Prépare le graphique (param="graph") ou le tableau (param="array")
+        Prepare the chart (param="graph") or the table (param="array")
         """
         if param == "graph":
             self.graph = save_graph(self.capture.protocols)
