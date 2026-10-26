@@ -43,12 +43,28 @@ def test_given_mac_claiming_gateway_and_victim_when_detect_arp_spoofing_then_att
     assert attack.details == f"se fait passer pour {GATEWAY_IP}, {VICTIM_IP}"
 
 
-def test_given_gateway_claimed_by_a_passive_mac_when_detect_arp_spoofing_then_not_accused():
-    # Given : la passerelle réclamée par un 2e MAC qui ne fait rien d'autre -> conflit ambigu (leurre ?)
-    packets = [arp_reply(GATEWAY_IP, GATEWAY_MAC)] + [arp_reply(GATEWAY_IP, ATTACKER_MAC)] * 3
+def test_given_gateway_claimed_by_a_flooding_mac_when_detect_arp_spoofing_then_it_is_accused():
+    # Given : la vraie passerelle répond une fois, l'usurpateur inonde la victime de réponses
+    packets = [arp_reply(GATEWAY_IP, ATTACKER_MAC)] * 2 + [arp_reply(GATEWAY_IP, GATEWAY_MAC)]
+    packets += [arp_reply(GATEWAY_IP, ATTACKER_MAC)]
 
     # When
     result = analyse_packets(packets).get_arp_spoofing_attacks()
+
+    # Then
+    assert [attack.attacker_mac for attack in result] == [ATTACKER_MAC]
+    assert result[0].get_attacker() == ATTACKER_MAC
+
+
+def test_given_arp_requests_carrying_a_shared_mac_when_detect_arp_spoofing_then_nothing_is_found():
+    # Given : requêtes "qui a la passerelle ?" de 4 victimes, toutes avec le même hwsrc
+    requests = [
+        Ether(src=VICTIM_MAC) / ARP(op=1, hwsrc=ATTACKER_MAC, psrc=f"192.168.1.1{n}", pdst=GATEWAY_IP)
+        for n in range(4)
+    ]
+
+    # When
+    result = analyse_packets(requests).get_arp_spoofing_attacks()
 
     # Then
     assert result == []
@@ -226,20 +242,27 @@ def test_given_decoy_marker_before_injection_when_find_flag_then_return_the_atta
     assert result == "ESGI{vrai}"
 
 
-def test_given_one_mac_spoofing_source_ips_when_detect_attacks_then_all_go_to_its_injection_ip():
-    # Given : une seule MAC qui scanne depuis une IP usurpée, ARP-spoofe, puis injecte depuis sa vraie IP
-    spoofed_ip = "192.168.1.99"
-    scan = [syn(spoofed_ip, VICTIM_IP, port) for port in range(1, 21)]
-    arp = [arp_reply(GATEWAY_IP, ATTACKER_MAC), arp_reply(VICTIM_IP, ATTACKER_MAC)]
+def test_given_pcap_where_all_ip_frames_share_one_mac_when_detect_attacks_then_each_attacker_is_found():
+    # Given : comme le pcap du correcteur, toutes les trames IP et les hwsrc des requêtes ARP portent
+    # la MAC de la machine qui a fabriqué le pcap (ici ATTACKER_MAC) ; scanner et injecteur diffèrent
+    spoofer_mac, scanner_ip = "02:51:c0:cc:4e:a0", "192.168.1.99"
+    victims = [f"192.168.1.1{n}" for n in range(4)]
+    requests = [
+        Ether(src=VICTIM_MAC) / ARP(op=1, hwsrc=ATTACKER_MAC, psrc=ip, pdst=GATEWAY_IP) for ip in victims
+    ]
+    gateway_replies = [arp_reply(GATEWAY_IP, GATEWAY_MAC) for _ in victims]
+    spoofed_replies = [arp_reply(GATEWAY_IP, spoofer_mac) for _ in victims] * 3
+    scan = [syn(scanner_ip, VICTIM_IP, port) for port in range(1, 21)]
     injection = [http(b"GET /?id=1' OR '1'='1 HTTP/1.1\r\n\r\n")]
+    packets = spoofed_replies[:2] + gateway_replies + requests + scan + spoofed_replies[2:] + injection
 
     # When
-    result = analyse_packets(scan + arp + injection).get_attacks()
+    result = analyse_packets(packets).get_attacks()
 
     # Then
     assert {(attack.attack_type, attack.get_attacker()) for attack in result} == {
-        ("arp_spoofing", ATTACKER_IP),
-        ("syn_scan", ATTACKER_IP),
+        ("arp_spoofing", spoofer_mac),
+        ("syn_scan", scanner_ip),
         ("sql_injection", ATTACKER_IP),
     }
 

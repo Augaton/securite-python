@@ -1,5 +1,5 @@
 import re
-from collections import defaultdict
+from collections import Counter, defaultdict
 from dataclasses import dataclass
 from urllib.parse import unquote, unquote_plus
 
@@ -37,8 +37,9 @@ class Attack:
     details: str
 
     def get_attacker(self) -> str:
-        """Identifiant de l'attaquant : son IP réelle, sa MAC si aucune IP ne lui est connue."""
-        return self.attacker_mac if self.attacker_ip == UNKNOWN else self.attacker_ip
+        """Identifiant de l'attaquant : sa MAC pour l'ARP, son IP sinon. Toutes les trames IP peuvent
+        porter la même MAC (celle de la machine qui a fabriqué le pcap) : seule l'IP les distingue."""
+        return self.attacker_mac if self.attack_type == "arp_spoofing" else self.attacker_ip
 
     def describe(self) -> str:
         return (
@@ -111,7 +112,7 @@ class TrafficAnalyzer:
     """Analyse le trafic paquet par paquet, sans garder les paquets."""
 
     def __init__(self) -> None:
-        self.arp_macs_by_ip = defaultdict(dict)  # {IP : {MAC : rang d'arrivée}}
+        self.arp_replies_by_ip = defaultdict(Counter)  # {IP : {MAC : nombre de réponses}}, ordre d'arrivée
         self.arp_ips_by_mac = defaultdict(set)
         # vraie IP d'une MAC, vue dans son trafic IP : en ARP spoofing l'IP annoncée est celle de la victime
         self.ip_by_mac = {}
@@ -135,10 +136,11 @@ class TrafficAnalyzer:
                 self.flag_by_ip[source_ip] = flag
 
     def add_arp(self, arp: ARP) -> None:
-        """Note l'annonce ARP "l'IP psrc est à la MAC hwsrc" (0.0.0.0 : machine sans IP, ignorée)."""
-        if is_ipv4_arp(arp) and arp.psrc != "0.0.0.0":
-            macs = self.arp_macs_by_ip[arp.psrc]
-            macs.setdefault(arp.hwsrc, len(macs))
+        """Note la réponse ARP "l'IP psrc est à la MAC hwsrc" (0.0.0.0 : machine sans IP, ignorée).
+        L'usurpation passe par des réponses ; une requête ne fait que demander une adresse, et son
+        hwsrc peut être celle de la machine qui a fabriqué la trame, pas celle de l'émetteur."""
+        if is_ipv4_arp(arp) and arp.op == 2 and arp.psrc != "0.0.0.0":
+            self.arp_replies_by_ip[arp.psrc][arp.hwsrc] += 1
             self.arp_ips_by_mac[arp.hwsrc].add(arp.psrc)
 
     def add_tcp(self, packet: Packet, source_ip: str) -> None:
@@ -160,14 +162,6 @@ class TrafficAnalyzer:
                 return self.flag_by_ip[attacker_ip]
         return next(iter(self.flag_by_ip.values()), None)
 
-    def get_real_ip(self, mac: str, default: str) -> str:
-        """Vraie IP d'une MAC : celle de sa session TCP d'injection SQL, impossible à usurper à
-        l'aveugle, alors que l'IP source d'un scan ou d'une annonce ARP l'est couramment."""
-        for injection in self.sql_injections.values():
-            if injection.attacker_mac == mac:
-                return injection.attacker_ip
-        return default
-
     def get_attacks(self) -> list[Attack]:
         ip_attacks = self.get_syn_scan_attacks() + self.get_sql_injection_attacks()
         other_attacker_macs = {attack.attacker_mac for attack in ip_attacks}
@@ -178,21 +172,21 @@ class TrafficAnalyzer:
         Retourne les MAC qui usurpent des IP, avec les IP usurpées :
         - une MAC qui annonce plusieurs IP les usurpe toutes
         - pour une IP annoncée par plusieurs MAC, on accuse celle déjà suspecte (plusieurs IP, ou source
-          d'une autre attaque) ; si aucune ne l'est, on n'accuse personne (conflit ambigu : vraie
-          passerelle contre leurres, pas une attaque attribuable)
+          d'une autre attaque), sinon celle qui envoie le plus de réponses : l'usurpateur inonde ses
+          victimes, la vraie machine ne répond qu'à leurs requêtes ; à égalité, la dernière arrivée
         """
         several_ips_macs = {mac for mac, ips in self.arp_ips_by_mac.items() if len(ips) > 1}
         suspect_macs = several_ips_macs | other_attacker_macs
         spoofed_ips_by_mac = defaultdict(set)
         for mac in several_ips_macs:
             spoofed_ips_by_mac[mac] |= self.arp_ips_by_mac[mac] - {self.ip_by_mac.get(mac)}
-        for ip, macs in self.arp_macs_by_ip.items():
-            if len(macs) > 1:
-                spoofer = max(macs, key=lambda mac: (mac in suspect_macs, macs[mac]))
-                # n'accuser que si le MAC est déjà suspect : une IP revendiquée par deux MAC passifs
-                # (ex. la passerelle réclamée par des leurres) est ambiguë, pas une attaque attribuable
-                if spoofer in suspect_macs:
-                    spoofed_ips_by_mac[spoofer].add(ip)
+        for ip, reply_counts in self.arp_replies_by_ip.items():
+            if len(reply_counts) > 1:
+                # reversed : max garde le premier ex aequo rencontré, donc ici le dernier arrivé
+                spoofer = max(
+                    reversed(reply_counts), key=lambda mac: (mac in suspect_macs, reply_counts[mac])
+                )
+                spoofed_ips_by_mac[spoofer].add(ip)
         return spoofed_ips_by_mac
 
     def get_arp_spoofing_attacks(self, other_attacker_macs: set[str] | None = None) -> list[Attack]:
@@ -201,7 +195,7 @@ class TrafficAnalyzer:
                 attack_type="arp_spoofing",
                 name="ARP spoofing",
                 protocol="ARP",
-                attacker_ip=self.get_real_ip(mac, self.ip_by_mac.get(mac, UNKNOWN)),
+                attacker_ip=self.ip_by_mac.get(mac, UNKNOWN),
                 attacker_mac=mac,
                 details=f"se fait passer pour {', '.join(sorted(spoofed_ips))}",
             )
@@ -214,7 +208,7 @@ class TrafficAnalyzer:
                 attack_type="syn_scan",
                 name="Scan SYN",
                 protocol="TCP",
-                attacker_ip=self.get_real_ip(self.syn_mac_by_ip[ip], ip),
+                attacker_ip=ip,
                 attacker_mac=self.syn_mac_by_ip[ip],
                 details=f"{len(ports)} ports visés sur {', '.join(sorted(self.syn_targets_by_ip[ip]))}",
             )
