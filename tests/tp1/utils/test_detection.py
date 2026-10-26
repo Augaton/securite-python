@@ -43,15 +43,15 @@ def test_given_mac_claiming_gateway_and_victim_when_detect_arp_spoofing_then_att
     assert attack.details == f"se fait passer pour {GATEWAY_IP}, {VICTIM_IP}"
 
 
-def test_given_gateway_ip_claimed_again_by_other_mac_when_detect_arp_spoofing_then_other_mac_is_accused():
-    # Given
+def test_given_gateway_claimed_by_a_passive_mac_when_detect_arp_spoofing_then_not_accused():
+    # Given : la passerelle réclamée par un 2e MAC qui ne fait rien d'autre -> conflit ambigu (leurre ?)
     packets = [arp_reply(GATEWAY_IP, GATEWAY_MAC)] + [arp_reply(GATEWAY_IP, ATTACKER_MAC)] * 3
 
     # When
     result = analyse_packets(packets).get_arp_spoofing_attacks()
 
     # Then
-    assert [attack.attacker_mac for attack in result] == [ATTACKER_MAC]
+    assert result == []
 
 
 def test_given_attacker_ip_traffic_when_detect_arp_spoofing_then_its_real_ip_is_found():
@@ -96,7 +96,8 @@ def test_given_syn_to_many_ports_when_detect_syn_scan_then_scanner_is_found():
     assert len(result) == 1
     attack = result[0]
     assert (attack.attack_type, attack.protocol, attack.attacker_ip) == ("syn_scan", "TCP", ATTACKER_IP)
-    assert attack.get_attacker() == ATTACKER_IP
+    # un scan usurpe souvent son IP source : on identifie le scanner par sa MAC
+    assert attack.get_attacker() == ATTACKER_MAC
     assert attack.attacker_mac == ATTACKER_MAC
     assert attack.details == f"20 ports visés sur {VICTIM_IP}"
 
@@ -235,9 +236,12 @@ def test_given_malformed_arp_packet_when_detect_attacks_then_it_is_ignored_witho
     assert result == []
 
 
-def test_given_real_owner_announcing_often_when_detect_arp_spoofing_then_newcomer_is_accused():
-    # Given
-    packets = [arp_reply(GATEWAY_IP, GATEWAY_MAC)] * 10 + [arp_reply(GATEWAY_IP, ATTACKER_MAC)]
+def test_given_newcomer_also_claiming_a_victim_when_detect_arp_spoofing_then_accused():
+    # Given : le 2e MAC réclame la passerelle ET une victime -> il usurpe plusieurs IP, donc suspect
+    packets = [arp_reply(GATEWAY_IP, GATEWAY_MAC)] * 10 + [
+        arp_reply(GATEWAY_IP, ATTACKER_MAC),
+        arp_reply(VICTIM_IP, ATTACKER_MAC),
+    ]
 
     # When
     result = analyse_packets(packets).get_arp_spoofing_attacks()

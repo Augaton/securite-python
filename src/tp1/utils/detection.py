@@ -37,8 +37,9 @@ class Attack:
     details: str
 
     def get_attacker(self) -> str:
-        """Adresse qui identifie l'attaquant : sa MAC pour l'ARP, son IP sinon."""
-        return self.attacker_mac if self.protocol == "ARP" else self.attacker_ip
+        """Identifiant de l'attaquant : son IP pour l'injection SQL (session réelle), sa MAC sinon
+        (ARP et scan de ports usurpent couramment l'adresse source)."""
+        return self.attacker_ip if self.attack_type == "sql_injection" else self.attacker_mac
 
     def describe(self) -> str:
         return (
@@ -160,8 +161,8 @@ class TrafficAnalyzer:
         Retourne les MAC qui usurpent des IP, avec les IP usurpées :
         - une MAC qui annonce plusieurs IP les usurpe toutes
         - pour une IP annoncée par plusieurs MAC, on accuse celle déjà suspecte (plusieurs IP, ou source
-          d'une autre attaque), sinon la dernière arrivée (comme arpwatch). Pas le nombre d'annonces :
-          la vraie passerelle en fait souvent plus que l'attaquant
+          d'une autre attaque) ; si aucune ne l'est, on n'accuse personne (conflit ambigu : vraie
+          passerelle contre leurres, pas une attaque attribuable)
         """
         several_ips_macs = {mac for mac, ips in self.arp_ips_by_mac.items() if len(ips) > 1}
         suspect_macs = several_ips_macs | other_attacker_macs
@@ -171,7 +172,10 @@ class TrafficAnalyzer:
         for ip, macs in self.arp_macs_by_ip.items():
             if len(macs) > 1:
                 spoofer = max(macs, key=lambda mac: (mac in suspect_macs, macs[mac]))
-                spoofed_ips_by_mac[spoofer].add(ip)
+                # n'accuser que si le MAC est déjà suspect : une IP revendiquée par deux MAC passifs
+                # (ex. la passerelle réclamée par des leurres) est ambiguë, pas une attaque attribuable
+                if spoofer in suspect_macs:
+                    spoofed_ips_by_mac[spoofer].add(ip)
         return spoofed_ips_by_mac
 
     def get_arp_spoofing_attacks(self, other_attacker_macs: set[str] | None = None) -> list[Attack]:
