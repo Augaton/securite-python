@@ -4,7 +4,7 @@ from scapy.all import Packet, conf, sniff
 
 from src.tp1.utils.config import logger
 from src.tp1.utils.detection import TrafficAnalyzer
-from src.tp1.utils.lib import choose_interface, get_protocol
+from src.tp1.utils.lib import choose_interface, get_protocols
 
 TIMEOUT = 60
 
@@ -15,6 +15,7 @@ class Capture:
         self.timeout = timeout
         self.interface = choose_interface() if pcap_file is None else ""
         self.listen_socket = None
+        self.packet_count = 0
         self.protocol_counts = Counter()
         self.analyzer = TrafficAnalyzer()
         self.protocols = {}
@@ -46,11 +47,12 @@ class Capture:
         logger.info(f"{self.get_packet_count()} packets captured")
 
     def add_packet(self, packet: Packet) -> None:
-        self.protocol_counts[get_protocol(packet)] += 1
+        self.packet_count += 1
+        self.protocol_counts.update(get_protocols(packet))
         self.analyzer.add_packet(packet)
 
     def get_packet_count(self) -> int:
-        return sum(self.protocol_counts.values())
+        return self.packet_count
 
     def get_source(self) -> str:
         return f"file {self.pcap_file}" if self.pcap_file is not None else f"interface {self.interface}"
@@ -84,13 +86,12 @@ class Capture:
         return self.summary
 
     def _gen_summary(self) -> str:
-        total = sum(self.protocols.values())
-        if total == 0:
+        if self.packet_count == 0:
             return f"No packet captured ({self.get_source()})."
 
         most_used = next(iter(self.protocols))
         summary = (
-            f"{total} packets were analysed ({self.get_source()}). "
+            f"{self.packet_count} packets were analysed ({self.get_source()}). "
             f"The most used protocol is {most_used} with {self.protocols[most_used]} packets. "
         )
         return summary + self._gen_attacks_summary()

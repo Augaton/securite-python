@@ -23,6 +23,7 @@ from src.tp1.utils.lib import (
     drop_privileges,
     format_share,
     get_protocol,
+    get_protocols,
     give_log_files_to,
     hello_world,
     parse_interface_choice,
@@ -164,6 +165,36 @@ def test_given_raw_data_only_when_get_protocol_then_return_other():
 
     # Then
     assert result == "Other"
+
+
+def test_given_http_packet_when_get_protocols_then_return_every_layer():
+    # Given
+    packet = Ether() / IP() / TCP() / Raw(b"GET / HTTP/1.1\r\n\r\n")
+
+    # When
+    result = get_protocols(packet)
+
+    # Then
+    assert result == ["Ethernet", "IP", "TCP", "HTTP"]
+
+
+def test_given_dns_packet_when_get_protocols_then_include_udp_and_dns():
+    # Given
+    packet = Ether() / IP() / UDP() / DNS()
+
+    # When
+    result = get_protocols(packet)
+
+    # Then
+    assert result == ["Ethernet", "IP", "UDP", "DNS"]
+
+
+def test_given_raw_only_when_get_protocols_then_fall_back_to_top_protocol():
+    # When
+    result = get_protocols(Raw(b"data"))
+
+    # Then
+    assert result == ["Other"]
 
 
 @pytest.mark.parametrize(

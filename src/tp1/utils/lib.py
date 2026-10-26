@@ -4,9 +4,17 @@ import pwd
 import sys
 
 from scapy.all import (
+    ARP,
+    DNS,
+    ICMP,
+    IP,
+    TCP,
+    UDP,
+    Ether,
     ICMPerror,
     IPerror,
     IPerror6,
+    IPv6,
     Packet,
     Padding,
     Raw,
@@ -20,6 +28,20 @@ from src.tp1.utils.config import logger
 
 # Raw data, plus the original packet headers copied into an ICMP error (still an ICMP packet)
 PAYLOAD_LAYERS = (Raw, Padding, IPerror, IPerror6, TCPerror, UDPerror, ICMPerror)
+
+# Scapy layer -> reported protocol name, in encapsulation order (link to application)
+PROTOCOL_LAYERS = (
+    (Ether, "Ethernet"),
+    (ARP, "ARP"),
+    (IP, "IP"),
+    (IPv6, "IPv6"),
+    (ICMP, "ICMP"),
+    (TCP, "TCP"),
+    (UDP, "UDP"),
+    (DNS, "DNS"),
+)
+# Scapy does not decode HTTP by default, so we spot it from the cleartext payload
+HTTP_SIGNATURES = (b"GET ", b"POST ", b"PUT ", b"PATCH ", b"DELETE ", b"HEAD ", b"OPTIONS ", b"HTTP/")
 
 
 def hello_world() -> str:
@@ -66,6 +88,18 @@ def get_protocol(packet: Packet) -> str:
     if not protocol_layers:
         return "Other"
     return protocol_layers[-1].__name__
+
+
+def is_http(packet: Packet) -> bool:
+    return packet.haslayer(TCP) and packet.haslayer(Raw) and bytes(packet[Raw].load).startswith(HTTP_SIGNATURES)
+
+
+def get_protocols(packet: Packet) -> list[str]:
+    """Every protocol present in a packet, e.g. Ether/IP/TCP/HTTP -> [Ethernet, IP, TCP, HTTP]."""
+    protocols = [name for layer, name in PROTOCOL_LAYERS if packet.haslayer(layer)]
+    if is_http(packet):
+        protocols.append("HTTP")
+    return protocols or [get_protocol(packet)]
 
 
 def format_share(count: int, total: int) -> str:
