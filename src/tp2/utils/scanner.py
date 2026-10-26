@@ -3,43 +3,48 @@ import re
 from collections import Counter
 from pathlib import Path
 
-RULES_FILE = Path(__file__).resolve().parent.parent / "rules" / "course_rules.yar"
+DEFAULT_RULES_DIR = Path(__file__).resolve().parents[3] / "rules"
 ESGI_FLAG = re.compile(rb"ESGI\{[\x20-\x7e]{1,100}\}")
 
 
-class YaraScanner:
-    def __init__(self, rules_path: str | None = None) -> None:
-        self.rules_path = str(rules_path or RULES_FILE)
+def yara_scan(data: bytes, rules_dir: str | None = None) -> list[str]:
+    """Noms des règles YARA déclenchées par le fichier.
 
-    def scan(self, data: bytes) -> list[str]:
-        """Noms des règles YARA déclenchées (vrai YARA s'il est installé, sinon repli Python)."""
-        try:
-            import yara
+    Compile chaque .yar du dossier donné (une règle cassée n'empêche pas les autres).
+    Repli en Python pur sur nos propres règles si yara-python est absent.
+    """
+    directory = Path(rules_dir) if rules_dir else DEFAULT_RULES_DIR
+    try:
+        import yara
 
-            rules = yara.compile(self.rules_path)
-            return sorted(match.rule for match in rules.match(data=data))
-        except Exception:
-            return self._fallback(data)
-
-    @staticmethod
-    def _fallback(data: bytes) -> list[str]:
-        """Reproduit course_rules.yar quand yara-python n'est pas disponible."""
-        lower = data.lower()
-        entropy = _entropy(data)
-        matches = []
-        if b"/gate.php" in data and (b"c2-" in data or b".example.test" in data):
-            matches.append("suspicious_c2_http")
-        if b"GetAsyncKeyState" in data or b"keylog" in lower:
-            matches.append("keylogger_behavior")
-        if b"backdoor" in lower or b"reverse shell" in lower:
-            matches.append("backdoor_behavior")
-        if b"dropper" in lower:
-            matches.append("dropper_behavior")
-        if entropy >= 7.0:
-            matches.append("high_entropy_packed")
-        if ESGI_FLAG.search(data):
-            matches.append("embedded_esgi_flag")
+        matches: set[str] = set()
+        rule_files = sorted(directory.glob("**/*.yar"))
+        if not rule_files:
+            return _fallback(data)
+        for rule_file in rule_files:
+            try:
+                compiled = yara.compile(str(rule_file))
+                matches.update(match.rule for match in compiled.match(data=data))
+            except Exception:
+                continue
         return sorted(matches)
+    except Exception:
+        return _fallback(data)
+
+
+def _fallback(data: bytes) -> list[str]:
+    """Reproduit nos règles rules/esgi_rules.yar quand yara-python n'est pas disponible."""
+    lower = data.lower()
+    matches = []
+    if b"/gate.php" in data and (b"c2-" in data or b".example.test" in data):
+        matches.append("ESGI_C2_HTTP_Beacon")
+    if b"GetAsyncKeyState" in data or b"keylog" in lower:
+        matches.append("ESGI_Keylogger_Behavior")
+    if b"backdoor" in lower or b"reverse shell" in lower or b"/bin/sh" in data:
+        matches.append("ESGI_Reverse_Shell_Backdoor")
+    if _entropy(data) >= 7.0:
+        matches.append("ESGI_High_Entropy_Payload")
+    return sorted(matches)
 
 
 def _entropy(data: bytes) -> float:

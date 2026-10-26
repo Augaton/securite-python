@@ -1,38 +1,47 @@
-import json
 from pathlib import Path
 
+from src.tp2.utils import analysis, verdict
 from src.tp2.utils.config import logger
-from src.tp2.utils.llm import LLMTriage
-from src.tp2.utils.sample import Sample
-from src.tp2.utils.scanner import YaraScanner
+from src.tp2.utils.llm import LLMClient, llm_triage
+from src.tp2.utils.scanner import yara_scan
 
 
-class Triage:
-    def __init__(self, path: str, backend: str = "openrouter") -> None:
-        self.path = path
-        self.backend = backend
-        self.scanner = YaraScanner()
-        self.llm = LLMTriage(backend)
+def triage_sample(path: str, rules_dir: str | None, client: LLMClient) -> dict:
+    """Analyse un échantillon et renvoie le dict de résultat au format attendu par le correcteur."""
+    data = Path(path).read_bytes()
+    logger.info(f"Triage de {path} ({len(data)} octets)")
 
-    def run(self) -> dict:
-        sample = Sample(self.path)
-        logger.info(f"Triage de {self.path} ({len(sample.data)} octets)")
+    meta = analysis.get_file_metadata(data)
+    iocs = analysis.extract_iocs(data)
+    binary = analysis.parse_binary(str(path))
+    yara_matches = yara_scan(data, rules_dir)
+    flag = analysis.find_flag(data)
 
-        meta = sample.get_file_metadata()
-        iocs = sample.extract_iocs()
-        bininfo = sample.parse_binary()
-        matches = self.scanner.scan(sample.data)
-        result = {
-            "file": Path(self.path).name,
-            "meta": meta,
-            "iocs": iocs,
-            "yara": matches,
-            "bin": bininfo,
-            "flag": sample.find_flag(),
-        }
+    # verdict déterministe : ne dépend ni du réseau ni du LLM (résiste à l'injection de prompt)
+    family = verdict.guess_family(yara_matches, iocs)
+    mitre = verdict.map_mitre(yara_matches, iocs, meta)
+    score = verdict.compute_score(yara_matches, iocs, meta)
+    summary = verdict.deterministic_summary(family, score, yara_matches, iocs)
 
-        summary = json.dumps({"meta": meta, "iocs": iocs, "yara": matches, "bin": bininfo})
-        verdict = self.llm.triage(summary)
-        if verdict is not None:
-            result["verdict"] = verdict
-        return result
+    # le LLM n'enrichit que le texte et les techniques ; il ne touche jamais au score ni au flag
+    features = verdict.build_features(meta, iocs, yara_matches, binary["imports"])
+    llm = llm_triage(features, client)
+    if llm:
+        mitre = sorted(set(mitre) | {t for t in llm["mitre_attack"] if isinstance(t, str)})
+        summary += " | LLM : " + str(llm["famille"]).replace("\n", " ")[:120]
+
+    return {
+        "sha256": meta["sha256"],
+        "md5": meta["md5"],
+        "size": meta["size"],
+        "entropy": meta["entropy"],
+        "file_type": meta["file_type"],
+        "iocs": iocs,
+        "imports": binary["imports"],
+        "yara_matches": yara_matches,
+        "family_guess": family,
+        "mitre_attack": mitre,
+        "llm_summary": summary,
+        "score": score,
+        "flag": flag,
+    }
