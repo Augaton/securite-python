@@ -12,7 +12,7 @@ ATTACKER_IP, ATTACKER_MAC = "192.168.1.66", "aa:bb:cc:dd:ee:ff"
 
 def arp_reply(ip: str, mac: str) -> Ether:
     """
-    ARP reply "ip is at mac" sent by mac
+    Réponse ARP "ip est à mac" envoyée par mac
     """
     return Ether(src=mac) / ARP(op=2, psrc=ip, hwsrc=mac)
 
@@ -40,7 +40,7 @@ def test_given_mac_claiming_gateway_and_victim_when_detect_arp_spoofing_then_att
     attack = result[0]
     assert (attack.attack_type, attack.protocol, attack.attacker_mac) == ("arp_spoofing", "ARP", ATTACKER_MAC)
     assert attack.get_attacker() == ATTACKER_MAC
-    assert attack.details == f"impersonates {GATEWAY_IP}, {VICTIM_IP}"
+    assert attack.details == f"se fait passer pour {GATEWAY_IP}, {VICTIM_IP}"
 
 
 def test_given_gateway_ip_claimed_again_by_other_mac_when_detect_arp_spoofing_then_other_mac_is_accused():
@@ -64,7 +64,7 @@ def test_given_attacker_ip_traffic_when_detect_arp_spoofing_then_its_real_ip_is_
 
     # Then
     assert result[0].attacker_ip == ATTACKER_IP
-    assert result[0].details == f"impersonates {GATEWAY_IP}"
+    assert result[0].details == f"se fait passer pour {GATEWAY_IP}"
 
 
 def test_given_arp_probes_without_ip_when_detect_arp_spoofing_then_they_are_ignored():
@@ -80,7 +80,7 @@ def test_given_arp_probes_without_ip_when_detect_arp_spoofing_then_they_are_igno
 
 def syn(source_ip: str, destination_ip: str, port: int, flags: str = "S") -> Ether:
     """
-    TCP connection request from source_ip to destination_ip:port
+    Demande de connexion TCP de source_ip vers destination_ip:port
     """
     return Ether(src=ATTACKER_MAC) / IP(src=source_ip, dst=destination_ip) / TCP(dport=port, flags=flags)
 
@@ -98,7 +98,7 @@ def test_given_syn_to_many_ports_when_detect_syn_scan_then_scanner_is_found():
     assert (attack.attack_type, attack.protocol, attack.attacker_ip) == ("syn_scan", "TCP", ATTACKER_IP)
     assert attack.get_attacker() == ATTACKER_IP
     assert attack.attacker_mac == ATTACKER_MAC
-    assert attack.details == f"20 ports targeted on {VICTIM_IP}"
+    assert attack.details == f"20 ports visés sur {VICTIM_IP}"
 
 
 def test_given_web_browsing_when_detect_syn_scan_then_nothing_is_found():
@@ -136,7 +136,7 @@ def test_given_few_ports_when_detect_syn_scan_then_nothing_is_found():
 
 def http(payload: bytes, source_ip: str = ATTACKER_IP) -> Ether:
     """
-    TCP packet to the victim's port 80 carrying payload
+    Paquet TCP vers le port 80 de la victime contenant payload
     """
     return Ether(src=ATTACKER_MAC) / IP(src=source_ip, dst=VICTIM_IP) / TCP(dport=80) / Raw(payload)
 
@@ -166,7 +166,7 @@ def test_given_injection_in_http_request_when_detect_sql_injection_then_attacker
         ATTACKER_IP,
     )
     assert attack.attacker_mac == ATTACKER_MAC
-    assert attack.details.startswith(f"HTTP request to {VICTIM_IP}: ")
+    assert attack.details.startswith(f"requête HTTP vers {VICTIM_IP} : ")
 
 
 @pytest.mark.parametrize(
@@ -224,7 +224,7 @@ def test_given_no_marker_when_find_flag_then_return_none():
 
 def test_given_malformed_arp_packet_when_detect_attacks_then_it_is_ignored_without_crashing():
     # Given
-    # ARP with an unknown protocol type: scapy gives psrc as raw bytes instead of text
+    # ARP avec un type de protocole inconnu : scapy donne psrc en octets bruts au lieu de texte
     malformed = Ether(bytes(Ether(src=ATTACKER_MAC) / ARP(op=2, ptype=0x1234, plen=5, hwsrc=ATTACKER_MAC)))
     packets = [arp_reply(GATEWAY_IP, ATTACKER_MAC), malformed]
 
@@ -262,7 +262,7 @@ def test_given_spoofing_before_real_reply_when_detect_attacks_then_mac_of_scanne
 
 def test_given_marker_with_control_characters_when_find_flag_then_it_is_rejected():
     # Given
-    # \x1b] ... \x07: escape sequence that would change the title of the terminal showing the logs
+    # \x1b] ... \x07 : séquence d'échappement qui changerait le titre du terminal où s'affichent les logs
     packets = [http(b"GET /?q=ESGI{\x1b]0;pwned\x07} HTTP/1.1\r\n\r\n")]
 
     # When

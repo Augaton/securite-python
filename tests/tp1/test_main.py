@@ -43,7 +43,7 @@ def test_given_no_root_when_main_then_no_report_and_sudo_command_is_given(mock_c
 
 def test_given_pcap_and_timeout_when_parse_arguments_then_options_are_read(tmp_path):
     # Given
-    pcap_file = tmp_path / "attack.pcap"
+    pcap_file = tmp_path / "attaque.pcap"
     pcap_file.write_bytes(b"")
 
     # When
@@ -107,4 +107,4 @@ def test_given_unknown_arguments_when_parse_arguments_then_warn_instead_of_stopp
 
     # Then
     assert options.pcap is None
-    assert "Unknown arguments ignored: --verbose --output sortie" in caplog.text
+    assert "Arguments inconnus ignorés : --verbose --output sortie" in caplog.text
