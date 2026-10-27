@@ -61,7 +61,7 @@ def test_given_wrong_option_when_parse_arguments_then_stop_with_error(arguments)
 
 
 @patch("src.tp1.main.Report")
-@patch("src.tp1.main.drop_privileges")
+@patch("src.tp1.main.abandonner_droits_root")
 @patch("src.tp1.main.Capture")
 def test_when_main_then_root_is_dropped_between_socket_opening_and_capture(
     mock_capture, mock_drop, _mock_report
@@ -69,14 +69,14 @@ def test_when_main_then_root_is_dropped_between_socket_opening_and_capture(
     # Given
     steps = []
     mock_capture.return_value.open_socket.side_effect = lambda: steps.append("open_socket")
-    mock_drop.side_effect = lambda: steps.append("drop_privileges")
+    mock_drop.side_effect = lambda: steps.append("abandonner_droits_root")
     mock_capture.return_value.capture_traffic.side_effect = lambda: steps.append("capture_traffic")
 
     # When
     main([])
 
     # Then
-    assert steps == ["open_socket", "drop_privileges", "capture_traffic"]
+    assert steps == ["open_socket", "abandonner_droits_root", "capture_traffic"]
 
 
 @pytest.mark.parametrize(

@@ -20,13 +20,13 @@ from scapy.all import (
 
 from src.tp1.utils.lib import (
     choose_interface,
-    drop_privileges,
-    format_share,
-    get_protocol,
-    get_protocols,
-    give_log_files_to,
+    abandonner_droits_root,
+    formater_part_pct,
+    recup_proto_principal,
+    recup_lst_protos,
+    rendre_fichiers_log_a,
     hello_world,
-    parse_interface_choice,
+    lire_choix_interface,
 )
 
 
@@ -86,7 +86,7 @@ def test_given_wrong_then_valid_choice_when_choose_interface_then_ask_again(_moc
 @patch("src.tp1.utils.lib.conf", MagicMock(iface="wlan0"))
 def test_given_valid_choice_when_parse_interface_choice_then_return_interface(choice, expected_interface):
     # When
-    result = parse_interface_choice(choice, ["lo", "eth0"])
+    result = lire_choix_interface(choice, ["lo", "eth0"])
 
     # Then
     assert result == expected_interface
@@ -95,7 +95,7 @@ def test_given_valid_choice_when_parse_interface_choice_then_return_interface(ch
 @pytest.mark.parametrize("choice", ["2", "-1", "abc"])
 def test_given_invalid_choice_when_parse_interface_choice_then_return_none(choice):
     # When
-    result = parse_interface_choice(choice, ["lo", "eth0"])
+    result = lire_choix_interface(choice, ["lo", "eth0"])
 
     # Then
     assert result is None
@@ -106,7 +106,7 @@ def test_given_dns_packet_when_get_protocol_then_return_dns():
     packet = Ether() / IP() / UDP() / DNS()
 
     # When
-    result = get_protocol(packet)
+    result = recup_proto_principal(packet)
 
     # Then
     assert result == "DNS"
@@ -117,7 +117,7 @@ def test_given_tcp_packet_with_data_when_get_protocol_then_return_tcp():
     packet = Ether() / IP() / TCP() / Raw(b"hello")
 
     # When
-    result = get_protocol(packet)
+    result = recup_proto_principal(packet)
 
     # Then
     assert result == "TCP"
@@ -128,7 +128,7 @@ def test_given_ipv6_packet_when_get_protocol_then_return_its_last_layer():
     packet = Ether() / IPv6() / ICMPv6ND_NS()
 
     # When
-    result = get_protocol(packet)
+    result = recup_proto_principal(packet)
 
     # Then
     assert result == "ICMPv6ND_NS"
@@ -139,7 +139,7 @@ def test_given_arp_packet_with_padding_when_get_protocol_then_return_arp():
     packet = Ether() / ARP() / Padding(b"\x00" * 18)
 
     # When
-    result = get_protocol(packet)
+    result = recup_proto_principal(packet)
 
     # Then
     assert result == "ARP"
@@ -150,7 +150,7 @@ def test_given_icmp_port_unreachable_when_get_protocol_then_return_icmp():
     packet = Ether() / IP() / ICMP(type=3, code=3) / IPerror() / UDPerror()
 
     # When
-    result = get_protocol(packet)
+    result = recup_proto_principal(packet)
 
     # Then
     assert result == "ICMP"
@@ -161,7 +161,7 @@ def test_given_raw_data_only_when_get_protocol_then_return_autre():
     packet = Raw(b"donnees")
 
     # When
-    result = get_protocol(packet)
+    result = recup_proto_principal(packet)
 
     # Then
     assert result == "Autre"
@@ -172,7 +172,7 @@ def test_given_http_packet_when_get_protocols_then_return_every_layer():
     packet = Ether() / IP() / TCP() / Raw(b"GET / HTTP/1.1\r\n\r\n")
 
     # When
-    result = get_protocols(packet)
+    result = recup_lst_protos(packet)
 
     # Then
     assert result == ["Ethernet", "IP", "TCP", "HTTP"]
@@ -183,7 +183,7 @@ def test_given_dns_packet_when_get_protocols_then_include_udp_and_dns():
     packet = Ether() / IP() / UDP() / DNS()
 
     # When
-    result = get_protocols(packet)
+    result = recup_lst_protos(packet)
 
     # Then
     assert result == ["Ethernet", "IP", "UDP", "DNS"]
@@ -191,7 +191,7 @@ def test_given_dns_packet_when_get_protocols_then_include_udp_and_dns():
 
 def test_given_raw_only_when_get_protocols_then_fall_back_to_top_protocol():
     # When
-    result = get_protocols(Raw(b"donnees"))
+    result = recup_lst_protos(Raw(b"donnees"))
 
     # Then
     assert result == ["Autre"]
@@ -202,7 +202,7 @@ def test_given_raw_only_when_get_protocols_then_fall_back_to_top_protocol():
 )
 def test_when_format_share_then_return_percentage(count, total, expected_share):
     # When
-    result = format_share(count, total)
+    result = formater_part_pct(count, total)
 
     # Then
     assert result == expected_share
@@ -218,7 +218,7 @@ def mock_os():
     Remplace les appels système de changement d'utilisateur : les tests ne tournent pas en root
     """
     with (
-        patch("src.tp1.utils.lib.get_sudo_user", return_value=SUDO_USER),
+        patch("src.tp1.utils.lib.recup_user_sudo", return_value=SUDO_USER),
         patch("src.tp1.utils.lib.os") as mock_os,
     ):
         mock_os.environ = {"HOME": "/root"}
@@ -229,8 +229,8 @@ def mock_os():
 
 def test_given_root_launched_with_sudo_when_drop_privileges_then_become_the_sudo_user(mock_os):
     # When
-    with patch("src.tp1.utils.lib.give_log_files_to") as mock_give_log_files_to:
-        drop_privileges()
+    with patch("src.tp1.utils.lib.rendre_fichiers_log_a") as mock_give_log_files_to:
+        abandonner_droits_root()
 
     # Then
     identity_calls = [method_call for method_call in mock_os.method_calls if method_call[0] in IDENTITY_CALLS]
@@ -244,7 +244,7 @@ def test_given_not_root_when_drop_privileges_then_nothing_changes(mock_os):
     mock_os.geteuid.return_value = 1000
 
     # When
-    drop_privileges()
+    abandonner_droits_root()
 
     # Then
     mock_os.setuid.assert_not_called()
@@ -252,8 +252,8 @@ def test_given_not_root_when_drop_privileges_then_nothing_changes(mock_os):
 
 def test_given_root_without_sudo_when_drop_privileges_then_warn_that_everything_runs_as_root(mock_os, caplog):
     # When
-    with patch("src.tp1.utils.lib.get_sudo_user", return_value=None):
-        drop_privileges()
+    with patch("src.tp1.utils.lib.recup_user_sudo", return_value=None):
+        abandonner_droits_root()
 
     # Then
     mock_os.setuid.assert_not_called()
@@ -265,8 +265,8 @@ def test_given_root_still_there_after_setuid_when_drop_privileges_then_stop(mock
     mock_os.getresuid.return_value = (1000, 1000, 0)
 
     # When / Then
-    with patch("src.tp1.utils.lib.give_log_files_to"), pytest.raises(RuntimeError):
-        drop_privileges()
+    with patch("src.tp1.utils.lib.rendre_fichiers_log_a"), pytest.raises(RuntimeError):
+        abandonner_droits_root()
 
 
 def test_given_log_file_when_give_log_files_to_then_chown_without_following_links(tmp_path):
@@ -277,7 +277,7 @@ def test_given_log_file_when_give_log_files_to_then_chown_without_following_link
     # When
     try:
         with patch("src.tp1.utils.lib.os.chown") as mock_chown:
-            give_log_files_to(SUDO_USER)
+            rendre_fichiers_log_a(SUDO_USER)
     finally:
         logging.getLogger().removeHandler(file_handler)
         file_handler.close()

@@ -5,7 +5,7 @@ from pathlib import Path
 
 from src.tp1.utils.capture import TIMEOUT, Capture
 from src.tp1.utils.config import logger
-from src.tp1.utils.lib import drop_privileges
+from src.tp1.utils.lib import abandonner_droits_root
 from src.tp1.utils.report import Report
 
 PCAP_EXTENSIONS = (".pcap", ".pcapng", ".cap")
@@ -64,7 +64,7 @@ def ouvrir_socket_capture(capture: Capture) -> bool:
         script_tp1 = Path(sys.executable).parent / "tp1"
         logger.error(f"Pas les droits pour capturer les paquets, relancer avec : sudo {script_tp1}")
         return False
-    drop_privileges()
+    abandonner_droits_root()
     return True
 
 

@@ -8,7 +8,7 @@ from fpdf.fonts import FontFace
 from src.tp1.utils.capture import Capture
 from src.tp1.utils.config import logger
 from src.tp1.utils.graph import save_graph
-from src.tp1.utils.lib import format_share
+from src.tp1.utils.lib import formater_part_pct
 
 FONT = "Helvetica"
 MARGIN_MM = 20
@@ -86,8 +86,10 @@ class Report:
         ) as table:
             table.row(("Protocole", "Paquets", "Part du trafic", "Trafic"))
             for protocol, count in self.array:
-                table.row((protocol, str(count), format_share(count, total), self.get_legitimacy(protocol)))
-            table.row(("Total", str(total), format_share(total, total), ""))
+                table.row(
+                    (protocol, str(count), formater_part_pct(count, total), self.get_legitimacy(protocol))
+                )
+            table.row(("Total", str(total), formater_part_pct(total, total), ""))
 
     def get_legitimacy(self, protocol: str) -> str:
         attack_names = [attack.name for attack in self.capture.attacks if attack.protocol == protocol]

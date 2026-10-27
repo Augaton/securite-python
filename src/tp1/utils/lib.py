@@ -48,75 +48,86 @@ def hello_world() -> str:
     return "hello world"
 
 
-def parse_interface_choice(choice: str, interfaces: list[str]) -> str | None:
-    choice = choice.strip()
-    if choice == "":
+def lire_choix_interface(choix: str, lst_interfaces: list[str]) -> str | None:
+    choix = choix.strip()
+    if choix == "":
         return str(conf.iface)
-    if choice in interfaces:
-        return choice
-    if choice.isdigit() and int(choice) < len(interfaces):
-        return interfaces[int(choice)]
+    if choix in lst_interfaces:
+        return choix
+    if choix.isdigit() and int(choix) < len(lst_interfaces):
+        return lst_interfaces[int(choix)]
     return None
 
 
-def use_default_interface() -> str:
+def recup_interface_defaut() -> str:
     logger.info(f"Pas de saisie possible, interface par défaut : {conf.iface}")
     return str(conf.iface)
 
 
-def choose_interface() -> str:
-    interfaces = get_if_list()
-    for index, interface in enumerate(interfaces):
+def afficher_lst_interfaces(lst_interfaces: list[str]) -> None:
+    for index, interface in enumerate(lst_interfaces):
         logger.info(f"{index} : {interface}")
 
-    if sys.stdin is None or not sys.stdin.isatty():
-        return use_default_interface()
+
+def verif_clavier_dispo() -> bool:
+    return sys.stdin is not None and sys.stdin.isatty()
+
+
+def demander_interface(lst_interfaces: list[str]) -> str:
     while True:
         try:
-            choice = input(f"Numéro de l'interface à écouter (Entrée = {conf.iface}) : ")
+            choix = input(f"Numéro de l'interface à écouter (Entrée = {conf.iface}) : ")
         except EOFError:
-            return use_default_interface()
-        interface = parse_interface_choice(choice, interfaces)
+            return recup_interface_defaut()
+        interface = lire_choix_interface(choix, lst_interfaces)
         if interface is not None:
             return interface
-        logger.warning(f"Choix invalide : {choice!r}")
+        logger.warning(f"Choix invalide : {choix!r}")
 
 
-def get_protocol(packet: Packet) -> str:
+def choose_interface() -> str:
+    lst_interfaces = get_if_list()
+    afficher_lst_interfaces(lst_interfaces)
+    if not verif_clavier_dispo():
+        return recup_interface_defaut()
+    return demander_interface(lst_interfaces)
+
+
+def recup_proto_principal(packet: Packet) -> str:
     """Protocole le plus précis d'un paquet (Ether / IP / UDP / DNS -> "DNS") ; "Autre" si données brutes."""
-    protocol_layers = [layer for layer in packet.layers() if layer not in PAYLOAD_LAYERS]
-    if not protocol_layers:
+    couches_proto = [couche for couche in packet.layers() if couche not in PAYLOAD_LAYERS]
+    if not couches_proto:
         return "Autre"
-    return protocol_layers[-1].__name__
+    return couches_proto[-1].__name__
 
 
-def is_http(packet: Packet) -> bool:
+def verif_http(packet: Packet) -> bool:
     return (
         packet.haslayer(TCP) and packet.haslayer(Raw) and bytes(packet[Raw].load).startswith(HTTP_SIGNATURES)
     )
 
 
-def get_protocols(packet: Packet) -> list[str]:
+def recup_lst_protos(packet: Packet) -> list[str]:
     """Tous les protocoles présents dans un paquet, ex : Ether/IP/TCP/HTTP -> [Ethernet, IP, TCP, HTTP]."""
-    protocols = [name for layer, name in PROTOCOL_LAYERS if packet.haslayer(layer)]
-    if is_http(packet):
-        protocols.append("HTTP")
-    return protocols or [get_protocol(packet)]
+    protos = [nom for couche, nom in PROTOCOL_LAYERS if packet.haslayer(couche)]
+    if verif_http(packet):
+        protos.append("HTTP")
+    return protos or [recup_proto_principal(packet)]
 
 
-def format_share(count: int, total: int) -> str:
-    share = count / total * 100 if total else 0.0
-    return f"{share:.1f} %"
+def formater_part_pct(nb: int, total: int) -> str:
+    part = nb / total * 100 if total else 0.0
+    return f"{part:.1f} %"
 
 
-def get_sudo_user() -> pwd.struct_passwd | None:
+def recup_user_sudo() -> pwd.struct_passwd | None:
     sudo_uid = os.environ.get("SUDO_UID")
     if sudo_uid is None:
         return None
     return pwd.getpwuid(int(sudo_uid))
 
 
-def give_log_files_to(user: pwd.struct_passwd) -> None:
+def rendre_fichiers_log_a(user: pwd.struct_passwd) -> None:
     """Rend à l'utilisateur les fichiers de log créés par root au démarrage."""
     for handler in logging.getLogger().handlers:
         if isinstance(handler, logging.FileHandler):
@@ -124,15 +135,7 @@ def give_log_files_to(user: pwd.struct_passwd) -> None:
             os.chown(handler.baseFilename, user.pw_uid, user.pw_gid, follow_symlinks=False)
 
 
-def drop_privileges() -> None:
-    """Abandonne définitivement les droits root pour repasser sous l'utilisateur qui a lancé sudo."""
-    if os.geteuid() != 0:
-        return
-    user = get_sudo_user()
-    if user is None:
-        logger.warning("Lancé en root sans sudo : pas d'utilisateur vers qui repasser, tout tourne en root")
-        return
-    give_log_files_to(user)
+def changer_uid_gid(user: pwd.struct_passwd) -> None:
     # groupes et gid d'abord : une fois l'uid changé, on n'a plus le droit de les modifier
     os.initgroups(user.pw_name, user.pw_gid)
     os.setgid(user.pw_gid)
@@ -140,5 +143,17 @@ def drop_privileges() -> None:
     if 0 in os.getresuid():
         message = "Impossible d'abandonner les droits root"
         raise RuntimeError(message)
+
+
+def abandonner_droits_root() -> None:
+    """Abandonne définitivement les droits root pour repasser sous l'utilisateur qui a lancé sudo."""
+    if os.geteuid() != 0:
+        return
+    user = recup_user_sudo()
+    if user is None:
+        logger.warning("Lancé en root sans sudo : pas d'utilisateur vers qui repasser, tout tourne en root")
+        return
+    rendre_fichiers_log_a(user)
+    changer_uid_gid(user)
     os.environ["HOME"] = user.pw_dir
     logger.info(f"Droits root abandonnés, la suite tourne en tant que {user.pw_name}")

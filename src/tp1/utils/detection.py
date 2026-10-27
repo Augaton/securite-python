@@ -5,7 +5,7 @@ from urllib.parse import unquote, unquote_plus
 
 from scapy.all import ARP, IP, TCP, Ether, IPv6, Packet, Raw
 
-from src.tp1.utils.lib import get_protocol
+from src.tp1.utils.lib import recup_proto_principal
 
 UNKNOWN = "inconnue"
 ETHERTYPE_IPV4 = 0x0800
@@ -92,7 +92,7 @@ def find_sql_injection(packet: Packet, source_ip: str) -> Attack | None:
     return Attack(
         attack_type="sql_injection",
         name="Injection SQL",
-        protocol=get_protocol(packet),
+        protocol=recup_proto_principal(packet),
         attacker_ip=source_ip,
         attacker_mac=get_source_mac(packet),
         details=f"requête HTTP vers {get_destination_ip(packet)} : {request_line!r}",

@@ -4,7 +4,7 @@ from scapy.all import Packet, conf, sniff
 
 from src.tp1.utils.config import logger
 from src.tp1.utils.detection import TrafficAnalyzer
-from src.tp1.utils.lib import choose_interface, get_protocols
+from src.tp1.utils.lib import choose_interface, recup_lst_protos
 
 TIMEOUT = 60
 
@@ -48,7 +48,7 @@ class Capture:
 
     def add_packet(self, packet: Packet) -> None:
         self.packet_count += 1
-        self.protocol_counts.update(get_protocols(packet))
+        self.protocol_counts.update(recup_lst_protos(packet))
         self.analyzer.add_packet(packet)
 
     def get_packet_count(self) -> int:
