@@ -1,4 +1,4 @@
-from src.tp1.utils.graph import create_graph, save_graph
+from src.tp1.utils.graph import creer_graph_protos, enreg_graph_svg
 
 
 def test_given_protocols_when_create_graph_then_graph_contains_protocols():
@@ -6,7 +6,7 @@ def test_given_protocols_when_create_graph_then_graph_contains_protocols():
     protocols = {"TCP": 3, "DNS": 1}
 
     # When
-    graph = create_graph(protocols)
+    graph = creer_graph_protos(protocols)
 
     # Then
     svg = graph.render(is_unicode=True)
@@ -20,7 +20,7 @@ def test_given_protocols_when_create_graph_then_most_used_protocol_is_on_top():
     protocols = {"DNS": 2, "TCP": 5, "ARP": 1}
 
     # When
-    graph = create_graph(protocols)
+    graph = creer_graph_protos(protocols)
 
     # Then
     # pygal dessine le premier libellé en bas du graphique
@@ -29,7 +29,7 @@ def test_given_protocols_when_create_graph_then_most_used_protocol_is_on_top():
 
 def test_when_create_graph_then_no_script_is_loaded_from_internet():
     # When
-    svg = create_graph({"TCP": 3}).render(is_unicode=True)
+    svg = creer_graph_protos({"TCP": 3}).render(is_unicode=True)
 
     # Then
     # par défaut pygal ajoute <script xlink:href="https://kozea.github.io/..."> pour ses infobulles
@@ -38,7 +38,7 @@ def test_when_create_graph_then_no_script_is_loaded_from_internet():
 
 def test_given_no_protocol_when_create_graph_then_say_no_packet():
     # When
-    svg = create_graph({}).render(is_unicode=True)
+    svg = creer_graph_protos({}).render(is_unicode=True)
 
     # Then
     assert "Aucun paquet capturé" in svg
@@ -50,7 +50,7 @@ def test_given_protocols_when_save_graph_then_only_svg_is_created(tmp_path, monk
     monkeypatch.chdir(tmp_path)
 
     # When
-    result = save_graph(protocols)
+    result = enreg_graph_svg(protocols)
 
     # Then
     assert result == "graph.svg"

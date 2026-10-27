@@ -29,7 +29,7 @@ def test_when_main_then_report_is_saved(mock_capture, mock_report):
 @patch("src.tp1.main.Capture")
 def test_given_no_root_when_main_then_no_report_and_sudo_command_is_given(mock_capture, mock_report, caplog):
     # Given
-    mock_capture.return_value.open_socket.side_effect = PermissionError
+    mock_capture.return_value.ouvrir_socket_ecoute.side_effect = PermissionError
 
     # When
     main([])
@@ -68,7 +68,7 @@ def test_when_main_then_root_is_dropped_between_socket_opening_and_capture(
 ):
     # Given
     steps = []
-    mock_capture.return_value.open_socket.side_effect = lambda: steps.append("open_socket")
+    mock_capture.return_value.ouvrir_socket_ecoute.side_effect = lambda: steps.append("ouvrir_socket_ecoute")
     mock_drop.side_effect = lambda: steps.append("abandonner_droits_root")
     mock_capture.return_value.capture_traffic.side_effect = lambda: steps.append("capture_traffic")
 
@@ -76,7 +76,7 @@ def test_when_main_then_root_is_dropped_between_socket_opening_and_capture(
     main([])
 
     # Then
-    assert steps == ["open_socket", "abandonner_droits_root", "capture_traffic"]
+    assert steps == ["ouvrir_socket_ecoute", "abandonner_droits_root", "capture_traffic"]
 
 
 @pytest.mark.parametrize(

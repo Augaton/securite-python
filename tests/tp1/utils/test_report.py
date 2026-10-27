@@ -6,7 +6,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from src.tp1.utils.detection import Attack
-from src.tp1.utils.graph import save_graph
+from src.tp1.utils.graph import enreg_graph_svg
 from src.tp1.utils.report import Report
 
 
@@ -58,7 +58,7 @@ def test_given_graph_when_save_then_pdf_is_created(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     report = Report(MagicMock(), "test.pdf", "Test summary")
     report.array = [("TCP", 3), ("DNS", 1)]
-    report.graph = save_graph({"TCP": 3, "DNS": 1})
+    report.graph = enreg_graph_svg({"TCP": 3, "DNS": 1})
 
     # When
     report.save("test.pdf")
@@ -72,7 +72,7 @@ def test_generate_graph():
     report = Report(MagicMock(), "test.pdf", "Test summary")
 
     # When
-    with patch("src.tp1.utils.report.save_graph", return_value="graph.svg"):
+    with patch("src.tp1.utils.report.enreg_graph_svg", return_value="graph.svg"):
         report.generate("graph")
 
     # Then
@@ -135,7 +135,7 @@ def make_capture(attacks: list, flag: str | None = None) -> MagicMock:
     Capture analysée de test : 3 paquets ARP et 1 TCP
     """
     capture = MagicMock()
-    capture.get_source.return_value = "interface eth0"
+    capture.recup_source.return_value = "interface eth0"
     capture.protocols = {"ARP": 3, "TCP": 1}
     capture.attacks = attacks
     capture.flag = flag

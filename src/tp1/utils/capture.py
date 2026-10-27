@@ -23,18 +23,18 @@ class Capture:
         self.flag = None
         self.summary = ""
 
-    def open_socket(self) -> None:
+    def ouvrir_socket_ecoute(self) -> None:
         """Ouvre le socket de capture : la seule étape qui a besoin des droits root."""
         if self.pcap_file is None:
             self.listen_socket = conf.L2listen(iface=self.interface)
 
-    def capture_traffic(self) -> None:
-        if self.pcap_file is not None:
-            sniff(offline=self.pcap_file, prn=self.ajout_pkt, store=False)
-            logger.info(f"{self.get_packet_count()} paquets lus dans {self.pcap_file}")
-            return
+    def lire_fichier_pcap(self) -> None:
+        sniff(offline=self.pcap_file, prn=self.ajout_pkt, store=False)
+        logger.info(f"{self.recup_nb_pkt()} paquets lus dans {self.pcap_file}")
+
+    def ecouter_interface(self) -> None:
         if self.listen_socket is None:
-            self.open_socket()
+            self.ouvrir_socket_ecoute()
         logger.info(
             f"Capture sur {self.interface} pendant {self.timeout} secondes (Ctrl+C pour arrêter avant)"
         )
@@ -44,17 +44,23 @@ class Capture:
         finally:
             self.listen_socket.close()
             self.listen_socket = None
-        logger.info(f"{self.get_packet_count()} paquets capturés")
+        logger.info(f"{self.recup_nb_pkt()} paquets capturés")
+
+    def capture_traffic(self) -> None:
+        if self.pcap_file is not None:
+            self.lire_fichier_pcap()
+        else:
+            self.ecouter_interface()
 
     def ajout_pkt(self, packet: Packet) -> None:
         self.packet_count += 1
         self.protocol_counts.update(recup_lst_protos(packet))
         self.analyzer.ajout_pkt(packet)
 
-    def get_packet_count(self) -> int:
+    def recup_nb_pkt(self) -> int:
         return self.packet_count
 
-    def get_source(self) -> str:
+    def recup_source(self) -> str:
         return f"fichier {self.pcap_file}" if self.pcap_file is not None else f"interface {self.interface}"
 
     def sort_network_protocols(self) -> dict:
@@ -65,22 +71,28 @@ class Capture:
     def get_all_protocols(self) -> dict:
         return dict(self.protocol_counts)
 
-    def analyse(self) -> None:
-        """Trie les protocoles, relève les attaques et le marqueur, puis construit le résumé."""
-        self.protocols = self.sort_network_protocols()
-        for protocol, count in self.protocols.items():
-            logger.info(f"{protocol} : {count} paquets")
+    def log_protos(self) -> None:
+        for proto, nb in self.protocols.items():
+            logger.info(f"{proto} : {nb} paquets")
 
-        self.attacks = self.analyzer.recup_attaques()
-        for attack in self.attacks:
-            logger.warning(f"Tentative d'attaque : {attack.decrire()}")
+    def log_attaques(self) -> None:
+        for attaque in self.attacks:
+            logger.warning(f"Tentative d'attaque : {attaque.decrire()}")
         if not self.attacks:
             logger.info("Aucune attaque détectée, tout va bien")
 
-        self.flag = self.analyzer.recup_flag()
+    def log_flag(self) -> None:
         if self.flag is not None:
             logger.info(f"Marqueur trouvé : {self.flag}")
 
+    def analyse(self) -> None:
+        """Trie les protocoles, relève les attaques et le marqueur, puis construit le résumé."""
+        self.protocols = self.sort_network_protocols()
+        self.log_protos()
+        self.attacks = self.analyzer.recup_attaques()
+        self.log_attaques()
+        self.flag = self.analyzer.recup_flag()
+        self.log_flag()
         self.summary = self._gen_summary()
 
     def get_summary(self) -> str:
@@ -88,17 +100,17 @@ class Capture:
 
     def _gen_summary(self) -> str:
         if self.packet_count == 0:
-            return f"Aucun paquet capturé ({self.get_source()})."
+            return f"Aucun paquet capturé ({self.recup_source()})."
 
-        most_used = next(iter(self.protocols))
+        proto_top = next(iter(self.protocols))
         summary = (
-            f"{self.packet_count} paquets ont été analysés ({self.get_source()}). "
-            f"Le protocole le plus utilisé est {most_used} avec {self.protocols[most_used]} paquets. "
+            f"{self.packet_count} paquets ont été analysés ({self.recup_source()}). "
+            f"Le protocole le plus utilisé est {proto_top} avec {self.protocols[proto_top]} paquets. "
         )
-        return summary + self._gen_attacks_summary()
+        return summary + self._gen_resume_attaques()
 
-    def _gen_attacks_summary(self) -> str:
+    def _gen_resume_attaques(self) -> str:
         if not self.attacks:
             return "Aucune attaque détectée, tout va bien."
-        attack_names = ", ".join(attack.name for attack in self.attacks)
-        return f"{len(self.attacks)} tentative(s) d'attaque détectée(s) : {attack_names}."
+        noms_attaques = ", ".join(attaque.name for attaque in self.attacks)
+        return f"{len(self.attacks)} tentative(s) d'attaque détectée(s) : {noms_attaques}."

@@ -26,7 +26,7 @@ def test_capture_init():
 
     # Then
     assert capture.interface == "eth0"
-    assert capture.get_packet_count() == 0
+    assert capture.recup_nb_pkt() == 0
     assert capture.protocols == {}
     assert capture.summary == ""
 
@@ -73,7 +73,7 @@ def test_given_pcap_file_when_open_socket_then_nothing_is_opened(mock_conf, tmp_
     capture = Capture(pcap_file=str(tmp_path / "attaque.pcap"))
 
     # When
-    capture.open_socket()
+    capture.ouvrir_socket_ecoute()
 
     # Then
     mock_conf.L2listen.assert_not_called()
@@ -210,5 +210,5 @@ def test_given_pcap_file_when_capture_traffic_then_packets_are_read_without_aski
 
     # Then
     mock_choose_interface.assert_not_called()
-    assert capture.get_packet_count() == len(packets)
-    assert capture.get_source() == f"fichier {pcap_file}"
+    assert capture.recup_nb_pkt() == len(packets)
+    assert capture.recup_source() == f"fichier {pcap_file}"

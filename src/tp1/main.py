@@ -58,7 +58,7 @@ def lire_args_cli(arguments: list[str] | None = None) -> argparse.Namespace:
 def ouvrir_socket_capture(capture: Capture) -> bool:
     """Ouvre le socket en root puis lâche les droits ; False si on n'a pas les droits."""
     try:
-        capture.open_socket()
+        capture.ouvrir_socket_ecoute()
     except PermissionError:
         # root ne connait pas poetry : on donne le chemin complet du script
         script_tp1 = Path(sys.executable).parent / "tp1"

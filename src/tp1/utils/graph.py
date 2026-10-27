@@ -29,24 +29,32 @@ BASE_HEIGHT_PX = 140
 BAR_HEIGHT_PX = 34
 
 
-def create_graph(protocols: dict) -> pygal.HorizontalBar:
+def trier_protos_croissant(protocols: dict) -> list[tuple[str, int]]:
+    # pygal dessine la première barre en bas : ordre croissant pour avoir la plus grande en haut
+    return sorted(protocols.items(), key=lambda item: item[1])
+
+
+def calc_hauteur_graph(nb_protos: int) -> int:
+    return BASE_HEIGHT_PX + BAR_HEIGHT_PX * max(nb_protos, 1)
+
+
+def creer_graph_protos(protocols: dict) -> pygal.HorizontalBar:
     graph = pygal.HorizontalBar(
         style=GRAPH_STYLE,
         title="Nombre de paquets par protocole",
         show_legend=False,
-        height=BASE_HEIGHT_PX + BAR_HEIGHT_PX * max(len(protocols), 1),
+        height=calc_hauteur_graph(len(protocols)),
         no_data_text="Aucun paquet capturé",
         order_min=0,  # graduations entières : on compte des paquets
         js=[],  # pas de script chargé depuis internet
     )
-    # pygal dessine la première barre en bas : ordre croissant pour avoir la plus grande en haut
-    ordered_protocols = sorted(protocols.items(), key=lambda item: item[1])
-    graph.x_labels = [protocol for protocol, _ in ordered_protocols]
-    graph.add("Paquets", [count for _, count in ordered_protocols])
+    protos_tries = trier_protos_croissant(protocols)
+    graph.x_labels = [proto for proto, _ in protos_tries]
+    graph.add("Paquets", [nb for _, nb in protos_tries])
     return graph
 
 
-def save_graph(protocols: dict) -> str:
-    create_graph(protocols).render_to_file(GRAPH_SVG)
+def enreg_graph_svg(protocols: dict) -> str:
+    creer_graph_protos(protocols).render_to_file(GRAPH_SVG)
     logger.info(f"Graphique enregistré dans {GRAPH_SVG}")
     return GRAPH_SVG

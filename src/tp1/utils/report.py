@@ -7,7 +7,7 @@ from fpdf.fonts import FontFace
 
 from src.tp1.utils.capture import Capture
 from src.tp1.utils.config import logger
-from src.tp1.utils.graph import save_graph
+from src.tp1.utils.graph import enreg_graph_svg
 from src.tp1.utils.lib import formater_part_pct
 
 FONT = "Helvetica"
@@ -64,7 +64,7 @@ class Report:
         pdf.set_font(FONT, size=10)
         pdf.set_text_color(*GREY_TEXT)
         date = datetime.now(timezone.utc).astimezone().strftime("%d/%m/%Y à %H:%M")
-        subtitle = f"Généré le {date} - {self.capture.get_source()}"
+        subtitle = f"Généré le {date} - {self.capture.recup_source()}"
         pdf.cell(0, 6, to_pdf_text(subtitle), new_x="LMARGIN", new_y="NEXT")
         pdf.set_text_color(0)
         pdf.ln(6)
@@ -172,6 +172,6 @@ class Report:
     def generate(self, param: str) -> None:
         """Prépare le graphique (param="graph") ou le tableau (param="array")."""
         if param == "graph":
-            self.graph = save_graph(self.capture.protocols)
+            self.graph = enreg_graph_svg(self.capture.protocols)
         elif param == "array":
             self.array = list(self.capture.protocols.items())
