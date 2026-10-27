@@ -11,7 +11,7 @@ def feed(capture: Capture, packets: list) -> None:
     Donne les paquets à la capture un par un, comme le fait sniff pendant une vraie capture
     """
     for packet in packets:
-        capture.add_packet(packet)
+        capture.ajout_pkt(packet)
 
 
 @pytest.fixture(autouse=True)
@@ -47,7 +47,7 @@ def test_given_capture_when_capture_traffic_then_packets_are_saved(mock_conf):
     mock_conf.L2listen.assert_called_once_with(iface="eth0")
     listen_socket = mock_conf.L2listen.return_value
     mock_sniff.assert_called_once_with(
-        opened_socket=listen_socket, timeout=60, prn=capture.add_packet, store=False
+        opened_socket=listen_socket, timeout=60, prn=capture.ajout_pkt, store=False
     )
     listen_socket.close.assert_called_once()
     assert capture.get_all_protocols() == {"Ethernet": 2, "IP": 1, "TCP": 1, "ARP": 1}

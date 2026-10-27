@@ -30,7 +30,7 @@ class Capture:
 
     def capture_traffic(self) -> None:
         if self.pcap_file is not None:
-            sniff(offline=self.pcap_file, prn=self.add_packet, store=False)
+            sniff(offline=self.pcap_file, prn=self.ajout_pkt, store=False)
             logger.info(f"{self.get_packet_count()} paquets lus dans {self.pcap_file}")
             return
         if self.listen_socket is None:
@@ -40,16 +40,16 @@ class Capture:
         )
         try:
             # sniff s'arrête proprement sur Ctrl+C, les paquets déjà reçus restent comptés
-            sniff(opened_socket=self.listen_socket, timeout=self.timeout, prn=self.add_packet, store=False)
+            sniff(opened_socket=self.listen_socket, timeout=self.timeout, prn=self.ajout_pkt, store=False)
         finally:
             self.listen_socket.close()
             self.listen_socket = None
         logger.info(f"{self.get_packet_count()} paquets capturés")
 
-    def add_packet(self, packet: Packet) -> None:
+    def ajout_pkt(self, packet: Packet) -> None:
         self.packet_count += 1
         self.protocol_counts.update(recup_lst_protos(packet))
-        self.analyzer.add_packet(packet)
+        self.analyzer.ajout_pkt(packet)
 
     def get_packet_count(self) -> int:
         return self.packet_count
@@ -71,13 +71,13 @@ class Capture:
         for protocol, count in self.protocols.items():
             logger.info(f"{protocol} : {count} paquets")
 
-        self.attacks = self.analyzer.get_attacks()
+        self.attacks = self.analyzer.recup_attaques()
         for attack in self.attacks:
-            logger.warning(f"Tentative d'attaque : {attack.describe()}")
+            logger.warning(f"Tentative d'attaque : {attack.decrire()}")
         if not self.attacks:
             logger.info("Aucune attaque détectée, tout va bien")
 
-        self.flag = self.analyzer.get_flag()
+        self.flag = self.analyzer.recup_flag()
         if self.flag is not None:
             logger.info(f"Marqueur trouvé : {self.flag}")
 

@@ -160,7 +160,7 @@ class Report:
         result = {
             "protocols": dict(self.capture.protocols),
             "attacks": [
-                {"type": attack.attack_type, "attacker": attack.get_attacker()}
+                {"type": attack.attack_type, "attacker": attack.recup_attaquant()}
                 for attack in self.capture.attacks
             ],
             "flag": self.capture.flag,
