@@ -22,9 +22,9 @@ def test_main_writes_one_sha256_json_per_sample(tmp_path, monkeypatch):
 
 
 def test_iter_samples_skips_aux_files(tmp_path):
-    from src.tp2.main import iter_samples
+    from src.tp2.main import lister_echantillons
 
     (tmp_path / "a.bin").write_bytes(b"x")
     (tmp_path / "GROUP.txt").write_text("grp")
     (tmp_path / "notes.json").write_text("{}")
-    assert [p.name for p in iter_samples(str(tmp_path))] == ["a.bin"]
+    assert [p.name for p in lister_echantillons(str(tmp_path))] == ["a.bin"]

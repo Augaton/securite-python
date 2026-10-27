@@ -1,6 +1,6 @@
 import json
 
-from src.tp2.utils.report import generate_report
+from src.tp2.utils.report import gen_rapport_triage
 
 RESULT = {
     "sha256": "abc123",
@@ -20,7 +20,7 @@ RESULT = {
 
 
 def test_generate_report_writes_triage_and_sha256_json(tmp_path):
-    path = generate_report(RESULT, str(tmp_path), "sample.bin")
+    path = gen_rapport_triage(RESULT, str(tmp_path), "sample.bin")
 
     assert path.name == "sample.bin.triage.json"
     assert (tmp_path / "abc123.json").exists()  # format <sha256>.json du sujet
@@ -28,8 +28,8 @@ def test_generate_report_writes_triage_and_sha256_json(tmp_path):
 
 
 def test_generate_pdf_creates_file(tmp_path):
-    from src.tp2.utils.report import _generate_pdf
+    from src.tp2.utils.report import _gen_pdf_triage
 
     pdf_path = tmp_path / "r.pdf"
-    _generate_pdf(RESULT, pdf_path)
+    _gen_pdf_triage(RESULT, pdf_path)
     assert pdf_path.exists() and pdf_path.read_bytes().startswith(b"%PDF")
