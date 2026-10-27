@@ -3,7 +3,7 @@ from pathlib import Path
 from src.tp2.utils import analysis, verdict
 from src.tp2.utils.config import logger
 from src.tp2.utils.llm import LLMClient, llm_triage
-from src.tp2.utils.scanner import yara_scan
+from src.tp2.utils.scanner import scan_yara
 
 
 def triage_sample(path: str, rules_dir: str | None, client: LLMClient) -> dict:
@@ -14,7 +14,7 @@ def triage_sample(path: str, rules_dir: str | None, client: LLMClient) -> dict:
     meta = analysis.recup_meta_fichier(data)
     iocs = analysis.extraire_iocs(data)
     binary = analysis.parser_binaire_lief(str(path))
-    yara_matches = yara_scan(data, rules_dir)
+    yara_matches = scan_yara(data, rules_dir)
     flag = analysis.trouver_vrai_flag(data)
 
     # verdict déterministe : ne dépend ni du réseau ni du LLM (résiste à l'injection de prompt)

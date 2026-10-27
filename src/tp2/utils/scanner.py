@@ -5,32 +5,41 @@ from src.tp2.utils.analysis import calc_entropie_shannon
 DEFAULT_RULES_DIR = Path(__file__).resolve().parents[3] / "rules"
 
 
-def yara_scan(data: bytes, rules_dir: str | None = None) -> list[str]:
+def lister_regles_yar(dossier: Path) -> list[Path]:
+    return sorted(dossier.glob("**/*.yar"))
+
+
+def _matcher_regle_yar(yara, fichier_regle: Path, data: bytes) -> set[str]:
+    """Règles déclenchées par un .yar ; un fichier qui ne compile pas ne casse pas les autres."""
+    try:
+        regles = yara.compile(str(fichier_regle))
+        return {match.rule for match in regles.match(data=data)}
+    except Exception:
+        return set()
+
+
+def scan_yara(data: bytes, rules_dir: str | None = None) -> list[str]:
     """Noms des règles YARA déclenchées par le fichier.
 
     Compile chaque .yar du dossier donné (une règle cassée n'empêche pas les autres).
     Repli en Python pur sur nos propres règles si yara-python est absent.
     """
-    directory = Path(rules_dir) if rules_dir else DEFAULT_RULES_DIR
+    dossier = Path(rules_dir) if rules_dir else DEFAULT_RULES_DIR
     try:
         import yara
 
+        fichiers_regles = lister_regles_yar(dossier)
+        if not fichiers_regles:
+            return _scan_repli_python(data)
         matches: set[str] = set()
-        rule_files = sorted(directory.glob("**/*.yar"))
-        if not rule_files:
-            return _fallback(data)
-        for rule_file in rule_files:
-            try:
-                compiled = yara.compile(str(rule_file))
-                matches.update(match.rule for match in compiled.match(data=data))
-            except Exception:
-                continue
+        for fichier_regle in fichiers_regles:
+            matches |= _matcher_regle_yar(yara, fichier_regle, data)
         return sorted(matches)
     except Exception:
-        return _fallback(data)
+        return _scan_repli_python(data)
 
 
-def _fallback(data: bytes) -> list[str]:
+def _scan_repli_python(data: bytes) -> list[str]:
     """Reproduit nos règles rules/esgi_rules.yar quand yara-python n'est pas disponible."""
     lower = data.lower()
     matches = []
