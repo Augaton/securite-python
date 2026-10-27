@@ -2,7 +2,7 @@ from pathlib import Path
 
 from src.tp2.utils import analysis, verdict
 from src.tp2.utils.config import logger
-from src.tp2.utils.llm import LLMClient, llm_triage
+from src.tp2.utils.llm import LLMClient, triage_llm
 from src.tp2.utils.scanner import scan_yara
 
 
@@ -46,7 +46,7 @@ def triage_echantillon(path: str, rules_dir: str | None, client: LLMClient) -> d
 
     # le LLM n'enrichit que le texte et les techniques ; il ne touche jamais au score ni au flag
     features = verdict.constr_features_llm(meta, iocs, yara_matches, binaire["imports"])
-    llm = llm_triage(features, client)
+    llm = triage_llm(features, client)
     if llm:
         mitre = fusion_mitre_llm(mitre, llm)
         resume += resume_llm(llm)
