@@ -20,6 +20,15 @@ KEY_FIELD_RE = re.compile(r"(?:key|cl[eé])[\"'\s:=]+([A-Za-z0-9+/=_\-]{3,})", r
 _FALLBACK_FIELDS = ("captcha", "answer", "code", "solution", "text", "input")
 
 
+def _chercher_regex(regex: re.Pattern, texte: str, groupe: int = 0) -> str | None:
+    m = regex.search(texte)
+    return m.group(groupe) if m else None
+
+
+def verif_infos_completes(data: dict) -> bool:
+    return bool(data.get("flag1") and data.get("host") and data.get("port") and data.get("key"))
+
+
 class _PageParser(HTMLParser):
     """Repere les <img> et le premier <form> (action, methode, champs)."""
 
@@ -31,18 +40,27 @@ class _PageParser(HTMLParser):
         self.fields: list[str] = []
         self._in_form = False
 
+    def _ajout_img(self, src: str) -> None:
+        self.images.append(src)
+
+    def _ouvrir_form(self, a: dict) -> None:
+        self._in_form = True
+        self.form_action = a.get("action", "")
+        self.form_method = (a.get("method") or "post").lower()
+
+    def _ajout_champ(self, a: dict) -> None:
+        name = a.get("name")
+        if name and a.get("type") not in ("submit", "hidden"):
+            self.fields.append(name)
+
     def handle_starttag(self, tag, attrs):
         a = dict(attrs)
         if tag == "img" and a.get("src"):
-            self.images.append(a["src"])
+            self._ajout_img(a["src"])
         elif tag == "form" and self.form_action is None:
-            self._in_form = True
-            self.form_action = a.get("action", "")
-            self.form_method = (a.get("method") or "post").lower()
+            self._ouvrir_form(a)
         elif tag in ("input", "textarea") and self._in_form:
-            name = a.get("name")
-            if name and a.get("type") not in ("submit", "hidden"):
-                self.fields.append(name)
+            self._ajout_champ(a)
 
     def handle_endtag(self, tag):
         if tag == "form":
@@ -59,51 +77,54 @@ class WebPhase:
         self.session = requests.Session()
         self.endpoint: str | None = None
 
-    def run(self) -> dict:
+    def derouler_phase_web(self) -> dict:
         """Deroule la phase web et renvoie {flag1, host, port, key}."""
         self.endpoint, _ = trouver_ep_cache(self.target, self.session, self.wordlist)
-
-        for attempt in range(1, self.max_attempts + 1):
-            page = self.session.get(self.endpoint, timeout=10)
-            parser = _PageParser()
-            parser.feed(page.text)
-
-            answer = self._solve_captcha(parser)
-            if not answer:
-                continue
-
-            result = self._submit(parser, answer)
-            data = self._extract(result)
-            if data.get("flag1") and data.get("host") and data.get("port") and data.get("key"):
-                logger.info(f"captcha franchi a l'essai {attempt}")
+        for essai in range(1, self.max_attempts + 1):
+            data = self._tenter_essai(essai)
+            if data is not None:
                 return data
-            logger.info(f"essai {attempt} : captcha refuse ou page incomplete (reponse '{answer}')")
-
         raise RuntimeError(f"captcha non resolu apres {self.max_attempts} essais")
 
-    def _solve_captcha(self, parser: _PageParser) -> str:
-        img_url = self._find_captcha_image(parser)
-        return Captcha(img_url, self.session).solve()
+    def _lire_page_captcha(self) -> _PageParser:
+        page = self.session.get(self.endpoint, timeout=10)
+        parser = _PageParser()
+        parser.feed(page.text)
+        return parser
 
-    def _find_captcha_image(self, parser: _PageParser) -> str:
-        """URL de l'image du captcha : <img> de la page, sinon chemins usuels."""
-        for src in parser.images:
-            return urljoin(self.endpoint + "/", src)
-        for guess in ("captcha", "captcha.png", "image", "img"):
-            return urljoin(self.endpoint + "/", guess)
-        return self.endpoint
+    def _tenter_essai(self, essai: int) -> dict | None:
+        """Un essai : lit la page, resout le captcha, envoie la reponse ; None si refuse."""
+        parser = self._lire_page_captcha()
+        reponse = self._resoudre_captcha(parser)
+        if not reponse:
+            return None
+        data = self._extraire_infos_page(self._envoyer_reponse_captcha(parser, reponse))
+        if verif_infos_completes(data):
+            logger.info(f"captcha franchi a l'essai {essai}")
+            return data
+        logger.info(f"essai {essai} : captcha refuse ou page incomplete (reponse '{reponse}')")
+        return None
 
-    def _submit(self, parser: _PageParser, answer: str) -> requests.Response:
+    def _resoudre_captcha(self, parser: _PageParser) -> str:
+        url_img = self._trouver_img_captcha(parser)
+        return Captcha(url_img, self.session).solve()
+
+    def _trouver_img_captcha(self, parser: _PageParser) -> str:
+        """URL de l'image du captcha : premier <img> de la page, sinon le chemin usuel "captcha"."""
+        src = parser.images[0] if parser.images else "captcha"
+        return urljoin(self.endpoint + "/", src)
+
+    def _envoyer_reponse_captcha(self, parser: _PageParser, reponse: str) -> requests.Response:
         """Renvoie la reponse du captcha au formulaire (POST/GET), cookies conserves."""
         action = urljoin(self.endpoint + "/", parser.form_action or "")
-        fields = parser.fields or list(_FALLBACK_FIELDS)
-        payload = {name: answer for name in fields}
+        champs = parser.fields or list(_FALLBACK_FIELDS)
+        payload = {name: reponse for name in champs}
         if parser.form_method == "get":
             return self.session.get(action, params=payload, timeout=10)
         return self.session.post(action, data=payload, timeout=10)
 
-    def _extract(self, resp: requests.Response) -> dict:
-        """Extrait flag1, host, port et cle du JSON ou du texte de la reponse."""
+    @staticmethod
+    def _extraire_depuis_json(resp: requests.Response) -> dict:
         data: dict = {}
         try:
             payload = resp.json()
@@ -115,19 +136,23 @@ class WebPhase:
                 data["key"] = payload.get("key")
         except ValueError:
             pass
+        return data
 
-        text = resp.text
+    def _completer_depuis_txt(self, data: dict, texte: str) -> None:
+        """Remplit ce que le JSON n'a pas donne en cherchant dans le texte de la page."""
         if not data.get("flag1"):
-            m = FLAG_RE.search(text)
-            data["flag1"] = m.group() if m else None
+            data["flag1"] = _chercher_regex(FLAG_RE, texte)
         if not data.get("key"):
-            m = KEY_FIELD_RE.search(text)
-            data["key"] = m.group(1) if m else None
+            data["key"] = _chercher_regex(KEY_FIELD_RE, texte, 1)
         if not data.get("host") or not data.get("port"):
-            host, port = self._extract_hostport(text)
+            host, port = self._extraire_host_port(texte)
             data["host"] = data.get("host") or host
             data["port"] = data.get("port") or port
 
+    def _extraire_infos_page(self, resp: requests.Response) -> dict:
+        """Extrait flag1, host, port et cle du JSON ou du texte de la reponse."""
+        data = self._extraire_depuis_json(resp)
+        self._completer_depuis_txt(data, resp.text)
         logger.info(
             f"page revelee -> flag1={data.get('flag1')} host={data.get('host')} "
             f"port={data.get('port')} key={data.get('key')}"
@@ -135,12 +160,12 @@ class WebPhase:
         return data
 
     @staticmethod
-    def _extract_hostport(text: str) -> tuple[str | None, int | None]:
-        hm = HOST_FIELD_RE.search(text)
-        pm = PORT_FIELD_RE.search(text)
+    def _extraire_host_port(texte: str) -> tuple[str | None, int | None]:
+        hm = HOST_FIELD_RE.search(texte)
+        pm = PORT_FIELD_RE.search(texte)
         if hm and pm:
             return hm.group(1), int(pm.group(1))
-        m = HOSTPORT_RE.search(text)
+        m = HOSTPORT_RE.search(texte)
         if m:
             return m.group(1), int(m.group(2))
         return None, None

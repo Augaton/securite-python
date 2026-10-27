@@ -33,7 +33,7 @@ def test_page_parser_finds_image_and_form():
 def test_extract_from_text():
     phase = WebPhase("http://localhost:8080")
     resp = _FakeResponse(text="Bravo ! FLAG1: ESGI{web_abc} host: 10.0.0.5 port: 9090 key: s3cr3t")
-    data = phase._extract(resp)
+    data = phase._extraire_infos_page(resp)
     assert data["flag1"] == "ESGI{web_abc}"
     assert data["host"] == "10.0.0.5"
     assert data["port"] == 9090
@@ -43,7 +43,7 @@ def test_extract_from_text():
 def test_extract_from_hostport_pattern():
     phase = WebPhase("http://localhost:8080")
     resp = _FakeResponse(text="connect to localhost:9090 key=abcd ESGI{x}")
-    data = phase._extract(resp)
+    data = phase._extraire_infos_page(resp)
     assert data["host"] == "localhost"
     assert data["port"] == 9090
 
@@ -51,7 +51,7 @@ def test_extract_from_hostport_pattern():
 def test_extract_from_json():
     phase = WebPhase("http://localhost:8080")
     resp = _FakeResponse(json_data={"flag1": "ESGI{json}", "host": "h", "port": 7000, "key": "k"})
-    data = phase._extract(resp)
+    data = phase._extraire_infos_page(resp)
     assert data == {"flag1": "ESGI{json}", "host": "h", "port": 7000, "key": "k"}
 
 
@@ -60,7 +60,7 @@ def test_find_captcha_image_from_page():
     phase.endpoint = "http://localhost:8080/secret"
     parser = _PageParser()
     parser.images = ["captcha.png"]
-    assert phase._find_captcha_image(parser) == "http://localhost:8080/secret/captcha.png"
+    assert phase._trouver_img_captcha(parser) == "http://localhost:8080/secret/captcha.png"
 
 
 @patch("src.tp3.utils.session.trouver_ep_cache")
@@ -74,7 +74,7 @@ def test_run_returns_data_once_captcha_passes(mock_captcha, mock_find):
     phase.session.get.return_value = _FakeResponse(text="<img src='c.png'><form></form>")
     phase.session.post.return_value = _FakeResponse(text="ESGI{web_ok} host: 10.0.0.1 port: 9090 key: zzz")
 
-    data = phase.run()
+    data = phase.derouler_phase_web()
     assert data["flag1"] == "ESGI{web_ok}"
     assert data["host"] == "10.0.0.1"
     assert data["port"] == 9090

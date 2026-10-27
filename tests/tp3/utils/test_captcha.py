@@ -32,7 +32,7 @@ def test_capture_from_bytes():
 def test_preprocess_returns_binarised_image():
     captcha = Captcha(_png_bytes())
     captcha.capture()
-    processed = captcha.preprocess()
+    processed = captcha.pretraiter_img()
     # agrandi x3 et reduit a deux niveaux (noir et blanc)
     assert processed.size == (180, 60)
     assert processed.getextrema() == (0, 255)

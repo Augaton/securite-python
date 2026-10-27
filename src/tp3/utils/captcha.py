@@ -13,6 +13,20 @@ _OCR_CONFIG = (
 )
 
 
+def agrandir_img_x3(img: Image.Image) -> Image.Image:
+    largeur, hauteur = img.size
+    return img.resize((largeur * 3, hauteur * 3), Image.LANCZOS)
+
+
+def binariser_img(img: Image.Image) -> Image.Image:
+    return img.point(lambda p: 0 if p < 140 else 255)
+
+
+def nettoyer_txt_ocr(raw: str) -> str:
+    """Ne garde que l'alphanumerique lu par tesseract."""
+    return re.sub(r"[^A-Za-z0-9]", "", raw)
+
+
 class Captcha:
     """Resolution d'un captcha image : capture, pretraitement PIL, OCR pytesseract."""
 
@@ -23,35 +37,32 @@ class Captcha:
         self.image: Image.Image | None = None
         self.value = ""
 
+    def _lire_octets_source(self) -> bytes:
+        if isinstance(self.source, (bytes, bytearray)):
+            return bytes(self.source)
+        return self.session.get(self.source, timeout=10).content
+
     def capture(self) -> Image.Image:
         """Charge l'image du captcha depuis l'URL ou les octets fournis."""
-        if isinstance(self.source, (bytes, bytearray)):
-            data = bytes(self.source)
-        else:
-            data = self.session.get(self.source, timeout=10).content
-        self.image = Image.open(io.BytesIO(data))
+        self.image = Image.open(io.BytesIO(self._lire_octets_source()))
         return self.image
 
-    def preprocess(self, image: Image.Image | None = None) -> Image.Image:
+    def pretraiter_img(self, image: Image.Image | None = None) -> Image.Image:
         """Nettoie l'image pour l'OCR : gris, agrandissement, contraste, binarisation, anti-bruit."""
         img = image or self.image
         if img is None:
             raise RuntimeError("aucune image a pretraiter (appeler capture d'abord)")
-        img = img.convert("L")
-        width, height = img.size
-        img = img.resize((width * 3, height * 3), Image.LANCZOS)
+        img = agrandir_img_x3(img.convert("L"))
         img = ImageOps.autocontrast(img)
-        img = img.point(lambda p: 0 if p < 140 else 255)
-        img = img.filter(ImageFilter.MedianFilter(3))
-        return img
+        img = binariser_img(img)
+        return img.filter(ImageFilter.MedianFilter(3))
 
     def solve(self) -> str:
         """Capture si besoin, pretraite, lit le texte et ne garde que l'alphanumerique."""
         if self.image is None:
             self.capture()
-        processed = self.preprocess()
-        raw = pytesseract.image_to_string(processed, config=_OCR_CONFIG)
-        self.value = re.sub(r"[^A-Za-z0-9]", "", raw)
+        raw = pytesseract.image_to_string(self.pretraiter_img(), config=_OCR_CONFIG)
+        self.value = nettoyer_txt_ocr(raw)
         logger.info(f"captcha lu par OCR : '{self.value}'")
         return self.value
 
