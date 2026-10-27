@@ -1,10 +1,8 @@
-import math
-import re
-from collections import Counter
 from pathlib import Path
 
+from src.tp2.utils.analysis import shannon_entropy
+
 DEFAULT_RULES_DIR = Path(__file__).resolve().parents[3] / "rules"
-ESGI_FLAG = re.compile(rb"ESGI\{[\x20-\x7e]{1,100}\}")
 
 
 def yara_scan(data: bytes, rules_dir: str | None = None) -> list[str]:
@@ -42,13 +40,6 @@ def _fallback(data: bytes) -> list[str]:
         matches.append("ESGI_Keylogger_Behavior")
     if b"backdoor" in lower or b"reverse shell" in lower or b"/bin/sh" in data:
         matches.append("ESGI_Reverse_Shell_Backdoor")
-    if _entropy(data) >= 7.0:
+    if shannon_entropy(data) >= 7.0:
         matches.append("ESGI_High_Entropy_Payload")
     return sorted(matches)
-
-
-def _entropy(data: bytes) -> float:
-    if not data:
-        return 0.0
-    n = len(data)
-    return -sum((c / n) * math.log2(c / n) for c in Counter(data).values())

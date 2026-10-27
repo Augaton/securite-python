@@ -22,12 +22,3 @@ def test_yara_scan_returns_list_and_matches_c2():
     result = yara_scan(b"GET /gate.php from c2-abc", None)
     assert isinstance(result, list)
     assert "ESGI_C2_HTTP_Beacon" in result
-
-
-def test_entropy_bounds():
-    import pytest
-
-    from src.tp2.utils.scanner import _entropy
-
-    assert _entropy(b"") == 0.0
-    assert _entropy(bytes(range(256))) == pytest.approx(8.0)
