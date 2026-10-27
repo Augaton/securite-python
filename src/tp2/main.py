@@ -4,7 +4,7 @@ from pathlib import Path
 from src.tp2.utils.config import logger
 from src.tp2.utils.llm import LLMClient
 from src.tp2.utils.report import generate_report
-from src.tp2.utils.triage import triage_sample
+from src.tp2.utils.triage import triage_echantillon
 
 # fichiers posés à côté des échantillons mais qui n'en sont pas
 AUX_SUFFIXES = {".json", ".txt", ".md", ".yar", ".yaml", ".yml", ".pdf", ".lock", ".toml"}
@@ -27,7 +27,7 @@ def main(argv: list[str] | None = None) -> None:
     logger.info("Starting TP2")
     client = LLMClient(args.llm)
     for sample in iter_samples(args.samples):
-        result = triage_sample(str(sample), args.rules, client)
+        result = triage_echantillon(str(sample), args.rules, client)
         json_path = generate_report(result, args.out, sample.name)
         logger.info(f"{sample.name} -> {json_path.name} (score {result['score']}, drapeau {result['flag']})")
 

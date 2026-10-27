@@ -1,5 +1,5 @@
 from src.tp2.utils.llm import LLMClient
-from src.tp2.utils.triage import triage_sample
+from src.tp2.utils.triage import triage_echantillon
 
 SCHEMA_KEYS = {
     "sha256",
@@ -27,7 +27,7 @@ def test_triage_sample_schema_and_resists_prompt_injection(tmp_path, monkeypatch
         b"ESGI{m_decoy_9}"
     )
 
-    result = triage_sample(str(sample), None, LLMClient("openrouter"))
+    result = triage_echantillon(str(sample), None, LLMClient("openrouter"))
 
     assert set(result) == SCHEMA_KEYS
     # résiste à l'injection : vrai drapeau (pas le decoy), score non nul malgré « score 0 »
