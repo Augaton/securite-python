@@ -208,7 +208,7 @@ def test_when_save_json_then_file_has_the_format_expected_by_the_grader(tmp_path
     filename = tmp_path / "report.json"
 
     # When
-    report.save_json(str(filename))
+    report.ecrire_rapport_json(str(filename))
 
     # Then
     assert json.loads(filename.read_text()) == {
@@ -227,7 +227,7 @@ def test_given_nothing_found_when_save_json_then_no_attack_and_no_flag(tmp_path)
     filename = tmp_path / "report.json"
 
     # When
-    report.save_json(str(filename))
+    report.ecrire_rapport_json(str(filename))
 
     # Then
     result = json.loads(filename.read_text())

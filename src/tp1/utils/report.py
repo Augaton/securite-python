@@ -22,9 +22,17 @@ BAR_GAP_MM = 1.5
 MAX_BARS = 25  # au-delà le graphique ne tient plus sur une page (le tableau, lui, garde tout)
 
 
-def to_pdf_text(text: str) -> str:
+def txt_pdf(texte: str) -> str:
     """Remplace par "?" les caractères que les polices de base de fpdf (latin-1) ne savent pas écrire."""
-    return str(text).encode("latin-1", "replace").decode("latin-1")
+    return str(texte).encode("latin-1", "replace").decode("latin-1")
+
+
+def ecrire_paragraphe(pdf: FPDF, texte: str) -> None:
+    pdf.multi_cell(0, 6, txt_pdf(texte), new_x="LMARGIN", new_y="NEXT")
+
+
+def recup_date_now() -> str:
+    return datetime.now(timezone.utc).astimezone().strftime("%d/%m/%Y à %H:%M")
 
 
 class Report:
@@ -41,42 +49,41 @@ class Report:
         pdf.set_margins(MARGIN_MM, MARGIN_MM)
         pdf.set_auto_page_break(True, margin=MARGIN_MM)
         pdf.add_page()
-        self.add_title(pdf)
+        self.ajout_titre(pdf)
 
-        self.add_section(pdf, "Résumé")
-        pdf.multi_cell(0, 6, to_pdf_text(self.summary), new_x="LMARGIN", new_y="NEXT")
+        self.ajout_section(pdf, "Résumé")
+        ecrire_paragraphe(pdf, self.summary)
         pdf.ln(6)
 
-        self.add_section(pdf, "Répartition des paquets par protocole")
-        self.add_array(pdf)
+        self.ajout_section(pdf, "Répartition des paquets par protocole")
+        self.ajout_tableau_protos(pdf)
         pdf.ln(6)
 
-        self.add_section(pdf, "Légitimité du trafic")
-        self.add_attacks(pdf)
+        self.ajout_section(pdf, "Légitimité du trafic")
+        self.ajout_attaques(pdf)
         pdf.ln(6)
 
-        self.add_graph(pdf)
+        self.ajout_graph(pdf)
         return pdf
 
-    def add_title(self, pdf: FPDF) -> None:
+    def ajout_titre(self, pdf: FPDF) -> None:
         pdf.set_font(FONT, "B", 18)
         pdf.cell(0, 10, self.title, new_x="LMARGIN", new_y="NEXT")
         pdf.set_font(FONT, size=10)
         pdf.set_text_color(*GREY_TEXT)
-        date = datetime.now(timezone.utc).astimezone().strftime("%d/%m/%Y à %H:%M")
-        subtitle = f"Généré le {date} - {self.capture.recup_source()}"
-        pdf.cell(0, 6, to_pdf_text(subtitle), new_x="LMARGIN", new_y="NEXT")
+        sous_titre = f"Généré le {recup_date_now()} - {self.capture.recup_source()}"
+        pdf.cell(0, 6, txt_pdf(sous_titre), new_x="LMARGIN", new_y="NEXT")
         pdf.set_text_color(0)
         pdf.ln(6)
 
     @staticmethod
-    def add_section(pdf: FPDF, title: str) -> None:
+    def ajout_section(pdf: FPDF, titre: str) -> None:
         pdf.set_font(FONT, "B", 13)
-        pdf.cell(0, 8, title, new_x="LMARGIN", new_y="NEXT")
+        pdf.cell(0, 8, titre, new_x="LMARGIN", new_y="NEXT")
         pdf.set_font(FONT, size=11)
 
-    def add_array(self, pdf: FPDF) -> None:
-        total = sum(count for _, count in self.array)
+    def ajout_tableau_protos(self, pdf: FPDF) -> None:
+        total = sum(nb for _, nb in self.array)
         with pdf.table(
             col_widths=(3, 1.6, 1.8, 3.6),
             text_align=("LEFT", "RIGHT", "RIGHT", "LEFT"),
@@ -85,20 +92,18 @@ class Report:
             line_height=7,
         ) as table:
             table.row(("Protocole", "Paquets", "Part du trafic", "Trafic"))
-            for protocol, count in self.array:
-                table.row(
-                    (protocol, str(count), formater_part_pct(count, total), self.get_legitimacy(protocol))
-                )
+            for proto, nb in self.array:
+                table.row((proto, str(nb), formater_part_pct(nb, total), self.recup_legitimite(proto)))
             table.row(("Total", str(total), formater_part_pct(total, total), ""))
 
-    def get_legitimacy(self, protocol: str) -> str:
-        attack_names = [attack.name for attack in self.capture.attacks if attack.protocol == protocol]
-        if not attack_names:
+    def recup_legitimite(self, proto: str) -> str:
+        noms_attaques = [attaque.name for attaque in self.capture.attacks if attaque.protocol == proto]
+        if not noms_attaques:
             return "Légitime"
-        return "Illégitime : " + ", ".join(attack_names)
+        return "Illégitime : " + ", ".join(noms_attaques)
 
     @staticmethod
-    def add_attacks_table(pdf: FPDF, attacks: list) -> None:
+    def ajout_tableau_attaques(pdf: FPDF, lst_attaques: list) -> None:
         with pdf.table(
             col_widths=(2.2, 1.8, 2.4, 3, 4.6),
             text_align="LEFT",
@@ -107,66 +112,73 @@ class Report:
             line_height=6,
         ) as table:
             table.row(("Attaque", "Protocole", "IP attaquant", "MAC attaquant", "Détails"))
-            for attack in attacks:
-                cells = (
-                    attack.name,
-                    attack.protocol,
-                    attack.attacker_ip,
-                    attack.attacker_mac,
-                    attack.details,
+            for attaque in lst_attaques:
+                cellules = (
+                    attaque.name,
+                    attaque.protocol,
+                    attaque.attacker_ip,
+                    attaque.attacker_mac,
+                    attaque.details,
                 )
-                table.row(tuple(to_pdf_text(cell) for cell in cells))
+                table.row(tuple(txt_pdf(cellule) for cellule in cellules))
 
-    def add_attacks(self, pdf: FPDF) -> None:
-        attacks = list(self.capture.attacks)
-        if not attacks:
-            pdf.multi_cell(0, 6, "Aucune attaque détectée : tout va bien.", new_x="LMARGIN", new_y="NEXT")
-        else:
-            self.add_attacks_table(pdf, attacks)
+    def ajout_flag(self, pdf: FPDF) -> None:
         if self.capture.flag is not None:
             pdf.ln(3)
-            pdf.multi_cell(
-                0, 6, to_pdf_text(f"Marqueur trouvé : {self.capture.flag}"), new_x="LMARGIN", new_y="NEXT"
-            )
+            ecrire_paragraphe(pdf, f"Marqueur trouvé : {self.capture.flag}")
 
-    def add_graph(self, pdf: FPDF) -> None:
-        protocols = list(self.capture.protocols.items())[:MAX_BARS]
-        if self.graph == "" or not protocols:
+    def ajout_attaques(self, pdf: FPDF) -> None:
+        lst_attaques = list(self.capture.attacks)
+        if not lst_attaques:
+            ecrire_paragraphe(pdf, "Aucune attaque détectée : tout va bien.")
+        else:
+            self.ajout_tableau_attaques(pdf, lst_attaques)
+        self.ajout_flag(pdf)
+
+    def ajout_graph(self, pdf: FPDF) -> None:
+        protos = list(self.capture.protocols.items())[:MAX_BARS]
+        if self.graph == "" or not protos:
             return
         with pdf.unbreakable() as section:
-            self.add_section(section, "Graphique : nombre de paquets par protocole")
-            self.draw_bars(section, protocols)
+            self.ajout_section(section, "Graphique : nombre de paquets par protocole")
+            self.dessiner_barres(section, protos)
 
     @staticmethod
-    def draw_bars(pdf: FPDF, protocols: list[tuple[str, int]]) -> None:
-        max_count = max(count for _, count in protocols)
-        bars_width = pdf.epw - LABEL_WIDTH_MM - VALUE_WIDTH_MM
+    def dessiner_une_barre(pdf: FPDF, proto: str, nb: int, largeur: float) -> None:
+        pdf.cell(LABEL_WIDTH_MM, BAR_HEIGHT_MM, f"{txt_pdf(proto)}  ", align="R")
+        # la barre est une cellule remplie : elle suit les sauts de page comme du texte
+        pdf.cell(max(largeur, 0.5), BAR_HEIGHT_MM, "", fill=True)
+        pdf.cell(VALUE_WIDTH_MM, BAR_HEIGHT_MM, f"  {nb}", new_x="LMARGIN", new_y="NEXT")
+        pdf.ln(BAR_GAP_MM)
+
+    @staticmethod
+    def dessiner_barres(pdf: FPDF, protos: list[tuple[str, int]]) -> None:
+        nb_max = max(nb for _, nb in protos)
+        largeur_barres = pdf.epw - LABEL_WIDTH_MM - VALUE_WIDTH_MM
         pdf.set_font(FONT, size=10)
         pdf.set_fill_color(*BAR_COLOR)
-        for protocol, count in protocols:
-            pdf.cell(LABEL_WIDTH_MM, BAR_HEIGHT_MM, f"{to_pdf_text(protocol)}  ", align="R")
-            # la barre est une cellule remplie : elle suit les sauts de page comme du texte
-            pdf.cell(max(bars_width * count / max_count, 0.5), BAR_HEIGHT_MM, "", fill=True)
-            pdf.cell(VALUE_WIDTH_MM, BAR_HEIGHT_MM, f"  {count}", new_x="LMARGIN", new_y="NEXT")
-            pdf.ln(BAR_GAP_MM)
+        for proto, nb in protos:
+            Report.dessiner_une_barre(pdf, proto, nb, largeur_barres * nb / nb_max)
 
     def save(self, filename: str) -> None:
         pdf = self.concat_report()
         pdf.output(filename)
         logger.info(f"Rapport enregistré dans {filename}")
 
-    def save_json(self, filename: str) -> None:
-        """Enregistre le report.json lu par le correcteur : protocoles, attaques et marqueur."""
-        result = {
+    def constr_resultat_json(self) -> dict:
+        return {
             "protocols": dict(self.capture.protocols),
             "attacks": [
-                {"type": attack.attack_type, "attacker": attack.recup_attaquant()}
-                for attack in self.capture.attacks
+                {"type": attaque.attack_type, "attacker": attaque.recup_attaquant()}
+                for attaque in self.capture.attacks
             ],
             "flag": self.capture.flag,
         }
-        with Path(filename).open("w", encoding="utf-8") as json_file:
-            json.dump(result, json_file, indent=2, ensure_ascii=False)
+
+    def ecrire_rapport_json(self, filename: str) -> None:
+        """Enregistre le report.json lu par le correcteur : protocoles, attaques et marqueur."""
+        with Path(filename).open("w", encoding="utf-8") as fichier_json:
+            json.dump(self.constr_resultat_json(), fichier_json, indent=2, ensure_ascii=False)
         logger.info(f"Résultat pour le correcteur enregistré dans {filename}")
 
     def generate(self, param: str) -> None:

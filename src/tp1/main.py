@@ -79,7 +79,7 @@ def ecrire_rapports(capture: Capture, summary: str) -> None:
     filename = "report.pdf"
     report = Report(capture, filename, summary)
     report.generate("array")
-    report.save_json("report.json")  # fichier noté par le correcteur : écrit en premier
+    report.ecrire_rapport_json("report.json")  # fichier noté par le correcteur : écrit en premier
     try:
         report.generate("graph")
         report.save(filename)
