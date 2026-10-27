@@ -60,3 +60,15 @@ def test_messages_shape():
 def test_chat_returns_none_when_backend_unreachable():
     # ollama local absent en test -> la requête échoue, envoyer_chat renvoie None sans lever
     assert LLMClient("ollama").envoyer_chat("sys", "usr") is None
+
+
+def test_verif_verdict_llm_reads_json_wrapped_in_text_and_rejects_bad_score():
+    from src.tp2.utils.llm import _verif_verdict_llm
+
+    raw = 'Voici : ```json\n{"famille":"x","capacites":[],"mitre_attack":[],"score":-3,"iocs":[]}\n```'
+    assert _verif_verdict_llm(raw)["score"] == 0
+    bad = '{"famille":"x","capacites":[],"mitre_attack":[],"score":"haut","iocs":[]}'
+    assert _verif_verdict_llm(bad) is None
+    assert (
+        _verif_verdict_llm('{"famille":"x","capacites":"c2","mitre_attack":[],"score":1,"iocs":[]}') is None
+    )

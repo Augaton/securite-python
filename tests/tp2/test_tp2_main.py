@@ -28,3 +28,16 @@ def test_iter_samples_skips_aux_files(tmp_path):
     (tmp_path / "GROUP.txt").write_text("grp")
     (tmp_path / "notes.json").write_text("{}")
     assert [p.name for p in lister_echantillons(str(tmp_path))] == ["a.bin"]
+
+
+def test_verif_est_echantillon_skips_aux_hidden_and_dirs(tmp_path):
+    from src.tp2.main import verif_est_echantillon
+
+    (tmp_path / "a.bin").write_bytes(b"x")
+    (tmp_path / "rules.YAR").write_text("rule")
+    (tmp_path / ".cache").write_bytes(b"x")
+    (tmp_path / "dossier").mkdir()
+    assert verif_est_echantillon(tmp_path / "a.bin")
+    assert not verif_est_echantillon(tmp_path / "rules.YAR")
+    assert not verif_est_echantillon(tmp_path / ".cache")
+    assert not verif_est_echantillon(tmp_path / "dossier")

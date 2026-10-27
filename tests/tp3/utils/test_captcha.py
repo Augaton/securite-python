@@ -52,3 +52,9 @@ def test_solve_captures_when_needed(_mock_ocr):
     assert captcha.image is None
     assert captcha.solve() == "XYZ789"
     assert captcha.image is not None
+
+
+def test_nettoyer_txt_ocr_keeps_only_alphanumeric():
+    from src.tp3.utils.captcha import nettoyer_txt_ocr
+
+    assert nettoyer_txt_ocr(" a-B_3 x!\n") == "aB3x"

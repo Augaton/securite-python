@@ -3,7 +3,9 @@ import time
 import pytest
 from scapy.all import ARP, IP, TCP, Ether, Raw
 
-from src.tp1.utils.detection import analyser_lst_pkt
+from collections import Counter
+
+from src.tp1.utils.detection import analyser_lst_pkt, choisir_usurpateur
 
 GATEWAY_IP, GATEWAY_MAC = "192.168.1.1", "00:00:00:00:00:01"
 VICTIM_IP, VICTIM_MAC = "192.168.1.10", "00:00:00:00:00:10"
@@ -339,3 +341,25 @@ def test_given_packet_full_of_marker_starts_when_find_flag_then_search_stays_fas
     # Then
     assert result is None
     assert time.perf_counter() - start < 1
+
+
+def test_given_suspect_mac_when_choisir_usurpateur_then_accuse_it_even_with_less_replies():
+    # Given
+    nb_rep_par_mac = Counter({GATEWAY_MAC: 5, ATTACKER_MAC: 1})
+
+    # When
+    result = choisir_usurpateur(nb_rep_par_mac, {ATTACKER_MAC})
+
+    # Then
+    assert result == ATTACKER_MAC
+
+
+def test_given_same_reply_count_when_choisir_usurpateur_then_accuse_the_last_arrived():
+    # Given
+    nb_rep_par_mac = Counter({GATEWAY_MAC: 2, ATTACKER_MAC: 2})
+
+    # When
+    result = choisir_usurpateur(nb_rep_par_mac, set())
+
+    # Then
+    assert result == ATTACKER_MAC

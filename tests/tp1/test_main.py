@@ -1,10 +1,11 @@
+import argparse
 import sys
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 
-from src.tp1.main import main, lire_args_cli
+from src.tp1.main import lire_args_cli, main, recup_args_ignores
 
 
 @patch("src.tp1.main.Report")
@@ -108,3 +109,14 @@ def test_given_unknown_arguments_when_parse_arguments_then_warn_instead_of_stopp
     # Then
     assert options.pcap is None
     assert "Arguments inconnus ignorés : --verbose --output sortie" in caplog.text
+
+
+def test_given_pcap_found_when_recup_args_ignores_then_keep_only_the_other_arguments():
+    # Given
+    options = argparse.Namespace(pcap="capture.pcap", pcap_file="capture.pcap")
+
+    # When
+    result = recup_args_ignores(options, ["--verbose", "sortie"])
+
+    # Then
+    assert result == ["--verbose", "sortie"]

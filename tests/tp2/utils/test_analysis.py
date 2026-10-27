@@ -64,3 +64,18 @@ def test_valid_ipv4():
 
     assert _verif_ipv4("185.1.2.3")
     assert not _verif_ipv4("999.1.1.1")
+
+
+@pytest.mark.parametrize(
+    "data, expected",
+    [
+        (b"\x7fELF\x02", "ELF binary"),
+        (b"MZ\x90", "PE32 executable"),
+        (b"PK\x03\x04", "Zip archive"),
+        (b"??", "data"),
+    ],
+)
+def test_detect_type_octets_magiques(data, expected):
+    from src.tp2.utils.analysis import detect_type_octets_magiques
+
+    assert detect_type_octets_magiques(data) == expected

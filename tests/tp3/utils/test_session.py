@@ -79,3 +79,12 @@ def test_run_returns_data_once_captcha_passes(mock_captcha, mock_find):
     assert data["host"] == "10.0.0.1"
     assert data["port"] == 9090
     assert data["key"] == "zzz"
+
+
+def test_verif_infos_completes_needs_flag_host_port_and_key():
+    from src.tp3.utils.session import verif_infos_completes
+
+    complet = {"flag1": "ESGI{a}", "host": "127.0.0.1", "port": 9001, "key": "k3y"}
+    assert verif_infos_completes(complet)
+    assert not verif_infos_completes({**complet, "key": None})
+    assert not verif_infos_completes({**complet, "port": None})
