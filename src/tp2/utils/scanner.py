@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from src.tp2.utils.analysis import shannon_entropy
+from src.tp2.utils.analysis import calc_entropie_shannon
 
 DEFAULT_RULES_DIR = Path(__file__).resolve().parents[3] / "rules"
 
@@ -40,6 +40,6 @@ def _fallback(data: bytes) -> list[str]:
         matches.append("ESGI_Keylogger_Behavior")
     if b"backdoor" in lower or b"reverse shell" in lower or b"/bin/sh" in data:
         matches.append("ESGI_Reverse_Shell_Backdoor")
-    if shannon_entropy(data) >= 7.0:
+    if calc_entropie_shannon(data) >= 7.0:
         matches.append("ESGI_High_Entropy_Payload")
     return sorted(matches)

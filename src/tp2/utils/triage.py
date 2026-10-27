@@ -11,11 +11,11 @@ def triage_sample(path: str, rules_dir: str | None, client: LLMClient) -> dict:
     data = Path(path).read_bytes()
     logger.info(f"Triage de {path} ({len(data)} octets)")
 
-    meta = analysis.get_file_metadata(data)
-    iocs = analysis.extract_iocs(data)
-    binary = analysis.parse_binary(str(path))
+    meta = analysis.recup_meta_fichier(data)
+    iocs = analysis.extraire_iocs(data)
+    binary = analysis.parser_binaire_lief(str(path))
     yara_matches = yara_scan(data, rules_dir)
-    flag = analysis.find_flag(data)
+    flag = analysis.trouver_vrai_flag(data)
 
     # verdict déterministe : ne dépend ni du réseau ni du LLM (résiste à l'injection de prompt)
     family = verdict.guess_family(yara_matches, iocs)

@@ -34,7 +34,15 @@ DOMAIN_TLDS = {
 }
 
 
-def shannon_entropy(data: bytes) -> float:
+MAGIC_BYTES = {
+    b"\x7fELF": "ELF binary",
+    b"MZ": "PE32 executable",
+    b"\xca\xfe\xba\xbe": "Mach-O binary",
+    b"PK\x03\x04": "Zip archive",
+}
+
+
+def calc_entropie_shannon(data: bytes) -> float:
     """Entropie de Shannon en bits par octet (0 = uniforme, ~8 = aléatoire/chiffré/packé)."""
     if not data:
         return 0.0
@@ -42,51 +50,69 @@ def shannon_entropy(data: bytes) -> float:
     return -sum((c / n) * math.log2(c / n) for c in Counter(data).values())
 
 
-def detect_file_type(data: bytes) -> str:
+def detect_type_octets_magiques(data: bytes) -> str:
+    for octets_magiques, nom in MAGIC_BYTES.items():
+        if data.startswith(octets_magiques):
+            return nom
+    return "data"
+
+
+def detect_type_fichier(data: bytes) -> str:
     """Type de fichier via python-magic, avec repli sur les octets magiques."""
     try:
         import magic
 
         return magic.from_buffer(data)
     except Exception:
-        for magic_bytes, name in {
-            b"\x7fELF": "ELF binary",
-            b"MZ": "PE32 executable",
-            b"\xca\xfe\xba\xbe": "Mach-O binary",
-            b"PK\x03\x04": "Zip archive",
-        }.items():
-            if data.startswith(magic_bytes):
-                return name
-        return "data"
+        return detect_type_octets_magiques(data)
 
 
-def get_file_metadata(data: bytes) -> dict:
+def recup_meta_fichier(data: bytes) -> dict:
     """SHA-256, MD5, taille, type de fichier et entropie de Shannon."""
     return {
         "sha256": hashlib.sha256(data).hexdigest(),
         "md5": hashlib.md5(data).hexdigest(),
         "size": len(data),
-        "file_type": detect_file_type(data),
-        "entropy": round(shannon_entropy(data), 2),
+        "file_type": detect_type_fichier(data),
+        "entropy": round(calc_entropie_shannon(data), 2),
     }
 
 
-def extract_iocs(data: bytes) -> dict:
-    """Domaines, IP, URLs, mutex et clés de registre trouvés dans les chaînes du fichier."""
-    urls = sorted({m.decode("latin-1") for m in URL_PATTERN.findall(data)})
-    ips = sorted({m.decode() for m in IPV4_PATTERN.findall(data) if _valid_ipv4(m.decode())})
-    mutex = sorted({m.decode("latin-1") for m in MUTEX_PATTERN.findall(data)})
-    registry = sorted({m.decode("latin-1") for m in REGISTRY_PATTERN.findall(data)})
+def _decoder_trier(lst_matchs: list[bytes]) -> list[str]:
+    return sorted({match.decode("latin-1") for match in lst_matchs})
 
-    domains = {_host_of(url) for url in urls}
+
+def extraire_urls(data: bytes) -> list[str]:
+    return _decoder_trier(URL_PATTERN.findall(data))
+
+
+def extraire_ips(data: bytes) -> list[str]:
+    return [ip for ip in _decoder_trier(IPV4_PATTERN.findall(data)) if _verif_ipv4(ip)]
+
+
+def extraire_domaines(data: bytes, urls: list[str]) -> list[str]:
+    """Hôtes des URLs, plus les noms de domaine nus dont le TLD est connu."""
+    domaines = {_recup_host_url(url) for url in urls}
     for match in DOMAIN_PATTERN.findall(data):
-        domain = match.decode("latin-1")
-        if domain.rsplit(".", 1)[-1].lower() in DOMAIN_TLDS:
-            domains.add(domain)
-    return {"domains": sorted(domains), "ips": ips, "urls": urls, "mutex": mutex, "registry": registry}
+        domaine = match.decode("latin-1")
+        if domaine.rsplit(".", 1)[-1].lower() in DOMAIN_TLDS:
+            domaines.add(domaine)
+    return sorted(domaines)
 
 
-def find_flag(data: bytes) -> str | None:
+def extraire_iocs(data: bytes) -> dict:
+    """Domaines, IP, URLs, mutex et clés de registre trouvés dans les chaînes du fichier."""
+    urls = extraire_urls(data)
+    return {
+        "domains": extraire_domaines(data, urls),
+        "ips": extraire_ips(data),
+        "urls": urls,
+        "mutex": _decoder_trier(MUTEX_PATTERN.findall(data)),
+        "registry": _decoder_trier(REGISTRY_PATTERN.findall(data)),
+    }
+
+
+def trouver_vrai_flag(data: bytes) -> str | None:
     """Le vrai marqueur ESGI{...}, en ignorant les faux drapeaux (decoy) plantés pour tromper."""
     for match in FLAG_PATTERN.findall(data):
         flag = match.decode("latin-1")
@@ -95,33 +121,35 @@ def find_flag(data: bytes) -> str | None:
     return None
 
 
-def parse_binary(path: str) -> dict:
+def _recup_noms_fonctions(binaire, attribut: str) -> list[str]:
+    """Noms des fonctions importées / exportées ; liste vide si lief ne sait pas les lire."""
+    try:
+        return [fonction.name for fonction in getattr(binaire, attribut) if fonction.name]
+    except Exception:
+        return []
+
+
+def parser_binaire_lief(path: str) -> dict:
     """Imports, exports et sections via lief (PE/ELF) ; listes vides si lief indisponible ou format inconnu."""
-    empty = {"imports": [], "exports": [], "sections": []}
+    vide = {"imports": [], "exports": [], "sections": []}
     try:
         import lief
 
-        binary = lief.parse(path)
-        if binary is None:
-            return empty
-        imports, exports = [], []
-        try:
-            imports = [f.name for f in binary.imported_functions if f.name]
-        except Exception:
-            imports = []
-        try:
-            exports = [f.name for f in binary.exported_functions if f.name]
-        except Exception:
-            exports = []
-        sections = [s.name for s in binary.sections if s.name]
-        return {"imports": imports, "exports": exports, "sections": sections}
+        binaire = lief.parse(path)
+        if binaire is None:
+            return vide
+        return {
+            "imports": _recup_noms_fonctions(binaire, "imported_functions"),
+            "exports": _recup_noms_fonctions(binaire, "exported_functions"),
+            "sections": [section.name for section in binaire.sections if section.name],
+        }
     except Exception:
-        return empty
+        return vide
 
 
-def _valid_ipv4(ip: str) -> bool:
+def _verif_ipv4(ip: str) -> bool:
     return all(octet.isdigit() and int(octet) <= 255 for octet in ip.split("."))
 
 
-def _host_of(url: str) -> str:
+def _recup_host_url(url: str) -> str:
     return url.split("://", 1)[-1].split("/", 1)[0].split(":", 1)[0]
