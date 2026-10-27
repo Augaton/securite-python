@@ -6,7 +6,7 @@ import requests
 
 from .captcha import Captcha
 from .config import logger
-from .fuzzer import find_hidden_endpoint
+from .fuzzer import trouver_ep_cache
 
 FLAG_RE = re.compile(r"ESGI\{[^}]*\}")
 # host:port — IP ou nom d'hote suivi d'un port
@@ -61,7 +61,7 @@ class WebPhase:
 
     def run(self) -> dict:
         """Deroule la phase web et renvoie {flag1, host, port, key}."""
-        self.endpoint, _ = find_hidden_endpoint(self.target, self.session, self.wordlist)
+        self.endpoint, _ = trouver_ep_cache(self.target, self.session, self.wordlist)
 
         for attempt in range(1, self.max_attempts + 1):
             page = self.session.get(self.endpoint, timeout=10)

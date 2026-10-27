@@ -2,19 +2,19 @@ import base64
 import socket
 import threading
 
-from src.tp3.utils.network import decode_token, run_network_phase, xor_bytes
+from src.tp3.utils.network import decoder_jeton, lancer_phase_reseau, xor_octets
 
 KEY = b"k3y"
 
 
 def test_xor_is_involutive():
-    assert xor_bytes(xor_bytes(b"hello", KEY), KEY) == b"hello"
+    assert xor_octets(xor_octets(b"hello", KEY), KEY) == b"hello"
 
 
 def test_decode_token():
     plain = b"round-token"
-    token = base64.b64encode(xor_bytes(plain, KEY))  # base64 puis XOR, a l'envers
-    assert decode_token(token, KEY) == plain
+    token = base64.b64encode(xor_octets(plain, KEY))  # base64 puis XOR, a l'envers
+    assert decoder_jeton(token, KEY) == plain
 
 
 def _serve_rounds(server: socket.socket, rounds: int, flag: bytes):
@@ -23,7 +23,7 @@ def _serve_rounds(server: socket.socket, rounds: int, flag: bytes):
     with conn:
         for i in range(rounds):
             plain = f"token{i}".encode()
-            token = base64.b64encode(xor_bytes(plain, KEY))
+            token = base64.b64encode(xor_octets(plain, KEY))
             conn.sendall(token + b"\n")
             reply = b""
             while b"\n" not in reply:
@@ -43,7 +43,7 @@ def test_run_network_phase_plays_rounds_and_returns_flag():
     thread = threading.Thread(target=_serve_rounds, args=(server, 3, flag))
     thread.start()
 
-    result = run_network_phase("127.0.0.1", port, KEY, timeout=5.0)
+    result = lancer_phase_reseau("127.0.0.1", port, KEY, timeout=5.0)
     thread.join(timeout=5)
     server.close()
 

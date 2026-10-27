@@ -63,7 +63,7 @@ def test_find_captcha_image_from_page():
     assert phase._find_captcha_image(parser) == "http://localhost:8080/secret/captcha.png"
 
 
-@patch("src.tp3.utils.session.find_hidden_endpoint")
+@patch("src.tp3.utils.session.trouver_ep_cache")
 @patch("src.tp3.utils.session.Captcha")
 def test_run_returns_data_once_captcha_passes(mock_captcha, mock_find):
     phase = WebPhase("http://localhost:8080")

@@ -1,7 +1,7 @@
 import argparse
 
 from .utils.config import logger
-from .utils.network import run_network_phase
+from .utils.network import lancer_phase_reseau
 from .utils.session import WebPhase
 
 
@@ -21,7 +21,7 @@ def main(argv: list[str] | None = None) -> None:
     print(f"[+] FLAG1: {data['flag1']}")
 
     # Phase reseau -> drapeau final
-    final = run_network_phase(data["host"], data["port"], data["key"])
+    final = lancer_phase_reseau(data["host"], data["port"], data["key"])
     print(f"[+] FLAG_FINAL: {final}")
 
 

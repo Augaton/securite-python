@@ -3,7 +3,7 @@ from unittest.mock import patch
 from src.tp3.main import main
 
 
-@patch("src.tp3.main.run_network_phase", return_value="ESGI{chain_final}")
+@patch("src.tp3.main.lancer_phase_reseau", return_value="ESGI{chain_final}")
 @patch("src.tp3.main.WebPhase")
 def test_main_prints_both_flags(mock_web, mock_network, capsys):
     mock_web.return_value.run.return_value = {
