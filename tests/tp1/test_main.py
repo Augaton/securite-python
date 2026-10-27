@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 import pytest
 
-from src.tp1.main import main, parse_arguments
+from src.tp1.main import main, lire_args_cli
 
 
 @patch("src.tp1.main.Report")
@@ -47,7 +47,7 @@ def test_given_pcap_and_timeout_when_parse_arguments_then_options_are_read(tmp_p
     pcap_file.write_bytes(b"")
 
     # When
-    options = parse_arguments(["--pcap", str(pcap_file), "--timeout", "120"])
+    options = lire_args_cli(["--pcap", str(pcap_file), "--timeout", "120"])
 
     # Then
     assert (options.pcap, options.timeout) == (str(pcap_file), 120)
@@ -57,7 +57,7 @@ def test_given_pcap_and_timeout_when_parse_arguments_then_options_are_read(tmp_p
 def test_given_wrong_option_when_parse_arguments_then_stop_with_error(arguments):
     # When / Then
     with pytest.raises(SystemExit):
-        parse_arguments(arguments)
+        lire_args_cli(arguments)
 
 
 @patch("src.tp1.main.Report")
@@ -95,7 +95,7 @@ def test_given_pcap_given_in_any_way_when_parse_arguments_then_it_is_found(argum
     arguments = [argument.format(pcap=pcap_file) for argument in arguments]
 
     # When
-    options = parse_arguments(arguments)
+    options = lire_args_cli(arguments)
 
     # Then
     assert options.pcap == str(pcap_file)
@@ -103,7 +103,7 @@ def test_given_pcap_given_in_any_way_when_parse_arguments_then_it_is_found(argum
 
 def test_given_unknown_arguments_when_parse_arguments_then_warn_instead_of_stopping(caplog):
     # When
-    options = parse_arguments(["--verbose", "--output", "sortie"])
+    options = lire_args_cli(["--verbose", "--output", "sortie"])
 
     # Then
     assert options.pcap is None
